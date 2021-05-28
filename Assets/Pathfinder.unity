@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0.44657838, g: 0.49641234, b: 0.57481676, a: 1}
+  m_IndirectSpecularColor: {r: 0.44657898, g: 0.4964133, b: 0.5748178, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -134,7 +134,7 @@ GameObject:
   - component: {fileID: 198692457}
   - component: {fileID: 198692456}
   - component: {fileID: 198692455}
-  - component: {fileID: 198692458}
+  - component: {fileID: 198692459}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -207,7 +207,7 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &198692458
+--- !u!114 &198692459
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -216,10 +216,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 198692454}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d1bb310859a7b4c1ab3cfb934aa2284c, type: 3}
+  m_Script: {fileID: 11500000, guid: eba9fc8ec05b7d64eac456cf4521ddaa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  player: {fileID: 381353010}
+  target: {fileID: 1587413442}
+  dist: 10
+  height: 5
+  smoothRotate: 5
 --- !u!1 &381353010 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 477e6737ee296446c9e7bfab627072fc, type: 3}
@@ -456,7 +459,7 @@ Transform:
   m_GameObject: {fileID: 903184632}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 20, y: 1, z: 20}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 3
@@ -526,3 +529,8 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 477e6737ee296446c9e7bfab627072fc, type: 3}
+--- !u!4 &1587413442 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 477e6737ee296446c9e7bfab627072fc, type: 3}
+  m_PrefabInstance: {fileID: 1587413441}
+  m_PrefabAsset: {fileID: 0}
