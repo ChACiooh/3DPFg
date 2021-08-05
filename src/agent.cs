@@ -14,16 +14,14 @@ namespace _3DPFg
     {
         private Action a_action;
         private Location loc;
-        private int stamina;
-        public static const int MAX_STAMINA = 100;
+        private State state;
 
         public Agent() 
         {
-            stamina = MAX_STAMINA;
+            state = new State();
         }
         public Agent(Agent a)
         {
-            stamina = MAX_STAMINA;
             this.a_action = new Action(a.a_action);
             this.a_loc = new Location(a.a_loc);
         }
@@ -32,7 +30,6 @@ namespace _3DPFg
             this.a_action = new Action(a);
             this.a_loc = new Location(l);
         }
-        public int getStamina() { return stamina; }
         public void updateAction(Action na)
         {
             a_action = na;

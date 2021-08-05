@@ -7,17 +7,19 @@ namespace _3DPFg
     {
         public AIMath() {}
 
-        
-        public double sigmoid(double x) {
-            return 1.0 / (1 + Math.Pow(Math.E, x));
+        public static double exp(double x) {
+            return Math.Pow(Math.E, x);
+        }
+        public static double sigmoid(double x) {
+            return 1.0 / (1 + exp(x));
         }
 
-        public double Relu(double x) {
+        public static double Relu(double x) {
             if(x < 0)   return 0.0;
             return x;
         }
 
-        public double[] softmax(double[] x, int n)
+        public static double[] softmax(double[] x, int n)
         {
             double sum = elems => {
                 double res = 0.0;

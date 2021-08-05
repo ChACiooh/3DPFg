@@ -1,41 +1,21 @@
 namespace _3DPFg
 {
-    public class Q_function
+    public class Q_table
     {
-        /* TODO */
-    }
-    public class RL
-    {
-        private State state;
-        private Agent agent;
-        private Action action;
-        private Environment env;
+        private double[][] _table_ = new double[State.STATE_ID_MAX][Action.ACTION_NUM];
+        private State now_state;
+        private Action before_action;
+        private bool now_action_doing = false;
+        private double gamma = 0.01;
 
-        /* TODO : 지형 정보는 float */
-
-        /* constants */
-        private static const double d = 10.0;
-        private static const double p = 0.005;
-        private static const int __k__ = 5;
-        public RL()
-        {
-            state = new State();
-            agent = new Agent();
-            action = new Action();
-            env = new Environment();
+        public Q_table() {
+            //
         }
-        public RL(State s, Agent a, Action ac, Environment _env_)
-        {
-            state = new State(s);
-            agent = new Agent(a);
-            action = new Action(ac);
-            env = new Environment(_env_);
-        } 
 
         private double accurate_action(in Action a)
         {
             int stamina = agent.getStamina();
-            int kind = a.kind();
+            int kind = a.getAction();
             if(stamina >= 0.7 * Agent.MAX_STAMINA)
             {
                 if(kind == Activities.Climb || kind == Activities.Para)   return 1.25;
@@ -74,6 +54,28 @@ namespace _3DPFg
                         - p * s.getSpendTime() 
                         + 0.7*accurate_action(a)
                         + variance(env.getMapInfo());
+        }
+
+        public double Q_value(State state, Action action)
+        {
+            int s = state.getStateNum();
+            int a = action.getAction();
+            return _table_[s][a];
+        }
+
+        public void update(State state, Action action)
+        {
+            int s = state.getStateNum();
+            int a = action.getAction();
+            double update_value = 1.0;
+            double max_qtbl = double.MinValue;
+            State next_state = Environment.state_transition(state, action);
+            for(int tmp_action = 0; tmp_action < Action.ACTION_NUM; ++tmp_action)
+            {
+                double qa = _table_[next_state.getStateNum()][tmp_action];
+                if(qa > max_qtbl)   max_qtbl = qa;
+            }
+            _table_[s][a] = Reward(state, action) + gamma * max_qtbl;
         }
     }
 }

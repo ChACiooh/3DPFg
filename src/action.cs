@@ -13,13 +13,17 @@ namespace _3DPFg
     public class Action
     {
         private int action_id = -1; // follows Activities
-
+        public static int ACTION_NUM = 7;
         public Action() {}
         
         /* components */
-        public int kind()
+        public int get_action()
         {
             return action_id;
+        }
+        public void set_action(int activity)
+        {
+            action_id = activity;
         }
         public int wait();         // 0
         public int running();      // 1
