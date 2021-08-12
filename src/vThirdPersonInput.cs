@@ -2,6 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Events;
+using System.Collections.Generic;
 
 namespace Invector.vCharacterController
 {
@@ -77,6 +78,10 @@ namespace Invector.vCharacterController
         protected Camera _cameraMain;
         protected bool withoutMainCamera;
         internal bool lockUpdateMoveDirection;                // lock the method UpdateMoveDirection
+        protected Terrain terrain;
+        protected TerrainCollider terrainCollider;
+        protected TerrainData terrainData;
+        protected Vector3 terrainPos;
 
         public Camera cameraMain
         {
@@ -129,7 +134,7 @@ namespace Invector.vCharacterController
         {
             timer = 0f;
             waitingTime = 0.13f;
-            
+            terrain = GameObject.Find("Terrain");
             cc = GetComponent<vThirdPersonController>();
 
             if (cc != null)
@@ -446,7 +451,28 @@ namespace Invector.vCharacterController
             StrafeInput();
             JumpInput();
             RollInput();
-            BehaviorSelector();
+            getHeights();
+            //BehaviorSelector();
+
+        }
+        public virtual void getHeights(){
+            
+            float[] arr_height = new float[50];
+
+
+            Vector3 Direction = cc.transform.position - tpCamera.transform.position;
+            Vector3 dir = Direction.normalized;
+            float mapX = cc.transform.position.x;
+            float mapZ = cc.transform.position.z;
+
+            for(int n = 0; n < 50; n++){
+                
+                arr_height[n] = terrainData.GetHeight((int) mapX,(int) mapZ);
+                mapX = mapX + 10f * dir.x;
+                mapZ = mapZ + 10f * dir.z;
+                Debug.Log(arr_height[n]);
+            }
+            
         }
         public virtual void BehaviorSelector()
         {
