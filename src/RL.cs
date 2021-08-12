@@ -15,6 +15,11 @@ namespace _3DPFg
         public int run() {
             if(now_state == State.DEATH_STATE)  return 0;
             // do something (TODO)
+            Action next_action = /*env로부터 가장 높은 확률을 가진 action 고르기 */
+            update(now_state, next_action)
+            now_state = Environment.state_transition(now_state, next_action);
+            now_action_doing = /*TODO*/
+            before_action = next_action;
             return 1;
         }
 
@@ -75,7 +80,7 @@ namespace _3DPFg
         {
             return r = 1.0 / (d * s.getRmndDist()) 
                         - p * s.getSpendTime() 
-                        + 0.7*accurate_action(a)
+                        + 0.7 * accurate_action(a)
                         + variance(env.getMapInfo());
         }
 
