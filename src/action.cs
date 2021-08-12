@@ -17,7 +17,7 @@ namespace _3DPFg
         public Action() {}
         
         /* components */
-        public int get_action()
+        public int getAction()
         {
             return action_id;
         }
