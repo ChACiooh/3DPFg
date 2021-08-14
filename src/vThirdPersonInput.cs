@@ -3,6 +3,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Events;
 using System.Collections.Generic;
+using System;
 
 namespace Invector.vCharacterController
 {
@@ -78,11 +79,7 @@ namespace Invector.vCharacterController
         protected Camera _cameraMain;
         protected bool withoutMainCamera;
         internal bool lockUpdateMoveDirection;                // lock the method UpdateMoveDirection
-        protected Terrain terrain;
-        protected TerrainCollider terrainCollider;
-        protected TerrainData terrainData;
-        protected Vector3 terrainPos;
-
+        protected Terrain t;
         public Camera cameraMain
         {
             get
@@ -134,7 +131,9 @@ namespace Invector.vCharacterController
         {
             timer = 0f;
             waitingTime = 0.13f;
-            terrain = GameObject.Find("Terrain");
+            t = GameObject.Find("land").GetComponent<Terrain>();
+            Debug.Log(t);
+
             cc = GetComponent<vThirdPersonController>();
 
             if (cc != null)
@@ -452,31 +451,39 @@ namespace Invector.vCharacterController
             JumpInput();
             RollInput();
             getHeights();
-            //BehaviorSelector();
+            BehaviorSelector();
 
         }
         public virtual void getHeights(){
-            
-            float[] arr_height = new float[50];
+            int xSize = 10, zSize = 10;
+            float[,] heights_at_position = new float[xSize, zSize];
+            //Debug.Log("vThirdPersonInput.cs-getHeights() called.");
+            Vector3 dir_vec = cc.transform.position - tpCamera.transform.position;
+            dir_vec = dir_vec.normalized;
 
-
-            Vector3 Direction = cc.transform.position - tpCamera.transform.position;
-            Vector3 dir = Direction.normalized;
-            float mapX = cc.transform.position.x;
-            float mapZ = cc.transform.position.z;
-
-            for(int n = 0; n < 50; n++){
-                
-                arr_height[n] = terrainData.GetHeight((int) mapX,(int) mapZ);
-                mapX = mapX + 10f * dir.x;
-                mapZ = mapZ + 10f * dir.z;
-                Debug.Log(arr_height[n]);
+            var worldPos = cc.transform.position;
+            int mapX = (int)(((worldPos.x - t.transform.position.x) / t.terrainData.size.x) * t.terrainData.alphamapWidth);
+            int mapZ = (int)(((worldPos.z - t.transform.position.z) / t.terrainData.size.z) * t.terrainData.alphamapHeight);
+            //float mapX = cc.transform.position.x;
+            //float mapZ = cc.transform.position.z;
+            float dx = 5f/10f/dir_vec.x, dz = 5f/10f/dir_vec.z;
+            //Debug.Log(mapX);
+            //Debug.Log(t.terrainData.GetHeight((int)mapX,(int)mapZ));
+            string str_debug = "";
+            for(int i = 0; i < 10; ++i) {
+                for(int j = 0; j < 10; ++j) {
+                    heights_at_position[i,j] = t.terrainData.GetHeight((int)(mapX + i * dx), (int)(mapZ + j * dz));
+                    str_debug += heights_at_position[i, j].ToString() + " ";
+                }
+                str_debug += "\n";
             }
+            //return heights_at_position;
             
+            Debug.Log(str_debug);
         }
         public virtual void BehaviorSelector()
         {
-            int num = Random.Range(1,11);
+            int num = UnityEngine.Random.Range(1,11);
             cc.input.z = 1;     //move forward default
             if(cc.isGrounded){
                 switch(num){
@@ -484,7 +491,7 @@ namespace Invector.vCharacterController
                         cc.input.z = 0;
                         break;
                     case 2:         //change direction randomly
-                        int rad = Random.Range(-10, 10);
+                        int rad = UnityEngine.Random.Range(-10, 10);
                         tpCamera.RotateCamera(rad,0);
                         break;
                     case 3:         //sprint
@@ -500,18 +507,6 @@ namespace Invector.vCharacterController
                     case 6:         //add sprint for continous sprint
                         cc.Sprint(true);
                         break;
-                    case 7:
-                        cc.Sprint(true);
-                        break;
-                    case 8:
-                        cc.Sprint(true);
-                        break;
-                    case 9:
-                        cc.Sprint(true);
-                        break;
-                    case 10:
-                        cc.Sprint(true);
-                        break;
                     default:
                         break;
                 }
@@ -522,7 +517,7 @@ namespace Invector.vCharacterController
                         cc.input.z = 0;
                         break;
                     case 2:
-                        int rad = Random.Range(-10, 10);
+                        int rad = UnityEngine.Random.Range(-10, 10);
                         tpCamera.RotateCamera(rad,0);
                         break;
                     default:
