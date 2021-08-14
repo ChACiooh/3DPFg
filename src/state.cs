@@ -27,7 +27,7 @@ namespace _3DPFg
         public int getStateNum() {
             return state_num;
         }
-        public void update(in State next_state)
+        public void update(in State next_state) 
         {
             stamina = next_state.stamina;
             remained_distance = next_state.remained_distance;

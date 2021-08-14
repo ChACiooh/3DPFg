@@ -12,17 +12,7 @@ namespace _3DPFg
             reset();
         }
 
-        public int run() {
-            if(now_state == State.DEATH_STATE)  return 0;
-            // do something (TODO)
-            Action next_action = /*env로부터 가장 높은 확률을 가진 action 고르기 */
-            update(now_state, next_action)
-            now_state = Environment.state_transition(now_state, next_action);
-            now_action_doing = /*TODO*/
-            before_action = next_action;
-            return 1;
-        }
-
+        
         public double getQvalue(in int action_id)
         {
             return _table_[now_state.getStateNum][action_id];
@@ -37,6 +27,8 @@ namespace _3DPFg
                 }
             }
         }
+
+        public State get_state() { return now_state; }
 
         public double accurate_action(in Action a)
         {
@@ -57,24 +49,19 @@ namespace _3DPFg
             return 0.7;
         }
 
-        private double variance(in MapInfo mi)
+        private float variance(in float[,] map_info)
         {
-            double ax = agent.X, az = agent.Z, ay = agent.Y;
-            double v = 0.0;
-            for(int angle = 0; angle <= 180; ++angle)
-            {
-                float[][] info = mi.getGeometry(ax, az, angle, __k__);   // y값들
-                int cnt = 0;
-                double sum = 0.0;
-                foreach(float[] ys in info) {
-                    foreach(float y in ys) {
-                        sum += (y - ay) * (y - ay);
-                        ++cnt;
-                    }
+            float ax = agent.X, az = agent.Z, ay = agent.Y;
+            float[,] info = mi.getGeometry(ax, az, angle, __k__);   // y값들
+            int cnt = 0;
+            float sum = 0.0;
+            foreach(float[] ys in info) {
+                foreach(float y in ys) {
+                    sum += (y - ay) * (y - ay);
+                    ++cnt;
                 }
-                v += sum / (double)cnt;
             }
-            return v;
+            return sum / (float)cnt;
         }
         private double Reward(State s, Action a)
         {
@@ -91,7 +78,7 @@ namespace _3DPFg
             return _table_[s][a];
         }
 
-        public void update(State state, Action action)
+        public void update(int state, Action action)
         {
             int s = state.getStateNum();
             int a = action.getAction();
@@ -104,6 +91,11 @@ namespace _3DPFg
                 if(qa > max_qtbl)   max_qtbl = qa;
             }
             _table_[s][a] = Reward(state, action) + gamma * max_qtbl;
+        }
+
+        public void update_state(State next_state)
+        {
+            now_state.update(next_state);
         }
     }
 }
