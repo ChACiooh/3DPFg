@@ -1,11 +1,8 @@
-namespace _3DPFg
+namespace Invector.vCharacterController
 {
     public class State
     {
-        public static const int MAX_STAMINA = 100;
-        public static int STATE_ID_MAX = MAX_STAMINA * 7 * 8 + 1;
-        public static int DEATH_STATE = 0;
-        private int stamina;
+        private int stamina; 
         private double remained_distance;
         private double spend_time;
         private int state_num;  // 7 * 8 * MAX_STAMINA의 종류만큼 있다. 
@@ -16,7 +13,7 @@ namespace _3DPFg
 
         public State() 
         {
-            stamina = MAX_STAMINA;
+            stamina = RL_Constants.MAX_STAMINA;
         }
         public State(State s)
         {
@@ -35,6 +32,7 @@ namespace _3DPFg
             state_num = next_state.state_num;
         }
 
+        public int getStamina() { return stamina; }
         public double getSpendTime() { return spend_time; }
         public double getRmndDist() { return remained_distance; }
     }

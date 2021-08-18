@@ -80,6 +80,11 @@ namespace Invector.vCharacterController
         protected bool withoutMainCamera;
         internal bool lockUpdateMoveDirection;                // lock the method UpdateMoveDirection
         protected Terrain t;
+
+
+        /**** RL ****/
+        private Environment my_env;
+
         public Camera cameraMain
         {
             get
@@ -132,6 +137,7 @@ namespace Invector.vCharacterController
             timer = 0f;
             waitingTime = 0.13f;
             t = GameObject.Find("land").GetComponent<Terrain>();
+            my_env = new Environment();
             Debug.Log(t);
 
             cc = GetComponent<vThirdPersonController>();
@@ -450,37 +456,38 @@ namespace Invector.vCharacterController
             StrafeInput();
             JumpInput();
             RollInput();
-            getHeights();
+            //getHeights();
             BehaviorSelector();
 
         }
-        public virtual void getHeights(){
-            int xSize = 10, zSize = 10;
-            float[,] heights_at_position = new float[xSize, zSize];
-            //Debug.Log("vThirdPersonInput.cs-getHeights() called.");
-            Vector3 dir_vec = cc.transform.position - tpCamera.transform.position;
-            dir_vec = dir_vec.normalized;
 
-            var worldPos = cc.transform.position;
-            int mapX = (int)(((worldPos.x - t.transform.position.x) / t.terrainData.size.x) * t.terrainData.alphamapWidth);
-            int mapZ = (int)(((worldPos.z - t.transform.position.z) / t.terrainData.size.z) * t.terrainData.alphamapHeight);
-            //float mapX = cc.transform.position.x;
-            //float mapZ = cc.transform.position.z;
-            float dx = 5f/10f/dir_vec.x, dz = 5f/10f/dir_vec.z;
-            //Debug.Log(mapX);
-            //Debug.Log(t.terrainData.GetHeight((int)mapX,(int)mapZ));
-            string str_debug = "";
-            for(int i = 0; i < 10; ++i) {
-                for(int j = 0; j < 10; ++j) {
-                    heights_at_position[i,j] = t.terrainData.GetHeight((int)(mapX + i * dx), (int)(mapZ + j * dz));
-                    str_debug += heights_at_position[i, j].ToString() + " ";
-                }
-                str_debug += "\n";
-            }
-            //return heights_at_position;
-            
-            Debug.Log(str_debug);
-        }
+        // public virtual float[,] getHeights(){
+        //     int xSize = 10, zSize = 10;
+        //     float[,] heights_at_position = new float[xSize, zSize];
+        //     //Debug.Log("vThirdPersonInput.cs-getHeights() called.");
+        //     Vector3 dir_vec = cc.transform.position - tpCamera.transform.position;
+        //     dir_vec = dir_vec.normalized;
+
+        //     var worldPos = cc.transform.position;
+        //     int mapX = (int)(((worldPos.x - t.transform.position.x) / t.terrainData.size.x) * t.terrainData.alphamapWidth);
+        //     int mapZ = (int)(((worldPos.z - t.transform.position.z) / t.terrainData.size.z) * t.terrainData.alphamapHeight);
+        //     //float mapX = cc.transform.position.x;
+        //     //float mapZ = cc.transform.position.z;
+        //     float dx = 5f/10f/dir_vec.x, dz = 5f/10f/dir_vec.z;
+        //     //Debug.Log(mapX);
+        //     //Debug.Log(t.terrainData.GetHeight((int)mapX,(int)mapZ));
+        //     string str_debug = "";
+        //     for(int i = 0; i < 10; ++i) {
+        //         for(int j = 0; j < 10; ++j) {
+        //             heights_at_position[i,j] = t.terrainData.GetHeight((int)(mapX + i * dx), (int)(mapZ + j * dz));
+        //             str_debug += heights_at_position[i, j].ToString() + " ";
+        //         }
+        //         str_debug += "\n";
+        //     }
+        //     //Debug.Log(str_debug);
+        //     return heights_at_position;
+        // }
+
         public virtual void BehaviorSelector()
         {
             int num = UnityEngine.Random.Range(1,11);

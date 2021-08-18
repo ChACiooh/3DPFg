@@ -1,4 +1,4 @@
-namespace _3DPFg
+namespace Invector.vCharacterController
 {
     public enum Activities
     {
@@ -12,25 +12,24 @@ namespace _3DPFg
     }
     public class Action
     {
-        private int action_id = -1; // follows Activities
-        public static int ACTION_NUM = 7;
-        public Action() {}
+        private Activities action_id; // follows Activities
+        public Action() { action_id = Activities.Wait; }
         
         /* components */
-        public int getAction()
+        public Activities getAction()
         {
             return action_id;
         }
-        public void set_action(int activity)
+        public void set_action(Activities activity)
         {
             action_id = activity;
         }
-        public int wait();         // 0
-        public int running();      // 1
-        public int jump();         // 2
-        public int dash();         // 3
-        public int paragliding();  // 4
-        public int climbing();     // 5
-        public int freefall();     // 6
+        // public int wait();         // 0
+        // public int running();      // 1
+        // public int jump();         // 2
+        // public int dash();         // 3
+        // public int paragliding();  // 4
+        // public int climbing();     // 5
+        // public int freefall();     // 6
     }
 }
