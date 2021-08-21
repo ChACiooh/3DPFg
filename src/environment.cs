@@ -9,7 +9,7 @@ namespace Invector.vCharacterController
 {
     public class Environment
     {
-        private float[,] map_info = null;
+        private float[,] map_info;
         private Agent agent;
         private float tau = 1.0f;
         private double[] prob_actions;
@@ -19,21 +19,25 @@ namespace Invector.vCharacterController
         private bool now_action_doing = false;
         private double gamma = 0.01;    // need to fine-tune
         private int d = 10000;
-        private float p = 0.9f;
+        private int lr_exp = 0;
+        private float t_u;
+        private vThirdPersonController cc;
+        private vCamera.vThirdPersonCamera tpCamera;
+        private Terrain t;
+        /* TODO : Recording 하기 위한 자료구조 선언 */
 
-
-        public Environment() 
+        public Environment(float waitingTime, float _tau_) 
         {
             agent = new Agent();
             _table_  = new double[RL_Constants.STATE_ID_MAX, RL_Constants.ACTION_NUM];
             map_info = new float[RL_Constants.xSize, RL_Constants.zSize];
-            reset();
-            tau = 1.0f;
             prob_actions = new double[RL_Constants.ACTION_NUM];
-            for(int i = 0; i < RL_Constants.ACTION_NUM; ++i) {
-                prob_actions[i] = UnityEngine.Random.Range(0.0f, 1.0f);
-            }
-            prob_actions = AIMath.softmax(prob_actions);
+            initialize();
+            tau = _tau_;
+            t_u = waitingTime;
+            lr_exp = 0;
+            now_action_doing = false;
+            now_state = new State(); // 초기 state initialize에서 정보가 부족한 상태
         }
 
         
@@ -42,7 +46,11 @@ namespace Invector.vCharacterController
             return _table_[now_state.getStateNum(), action_id];
         }
 
-        public void reset() {
+        public void initialize() {
+            for(int i = 0; i < RL_Constants.ACTION_NUM; ++i) {
+                prob_actions[i] = UnityEngine.Random.Range(0.0f, 1.0f);
+            }
+            prob_actions = AIMath.softmax(prob_actions);
             for(int state_id = 0; state_id < RL_Constants.STATE_ID_MAX; ++state_id)
             {
                 for(int action_id = 0; action_id < RL_Constants.ACTION_NUM; ++action_id)
@@ -50,6 +58,23 @@ namespace Invector.vCharacterController
                     _table_[state_id, action_id] = 0.0;
                 }
             }
+        }
+
+        public void updateEnvrionment(vThirdPersonController _cc_, vCamera.vThirdPersonCamera _tpCamera_, Terrain _t_)
+        {
+            cc = _cc_;
+            tpCamera = _tpCamera_;
+            t = _t_;
+        }
+
+        public void act()
+        {
+            // TODO
+            if(now_action_doing)    return;
+            //update_state();
+            int action_id = determine_action();
+            Action action = new Action(action_id);
+            QTableUpdate(now_state, action);
         }
 
         public State get_state() { return now_state; }
@@ -87,9 +112,9 @@ namespace Invector.vCharacterController
         private double Reward(Agent agent, State s, Action a)
         {
             return 1.0f / (d * s.getRmndDist()) 
-                        - p * s.getSpendTime() 
+                        - 0.9f * s.getSpendTime() 
                         + 0.7f * accurate_action(a)
-                        + variance(agent);
+                        + 1.0f / AIMath.exp(variance(agent));
         }
 
         public double Q_value(State state, Action action)
@@ -99,7 +124,7 @@ namespace Invector.vCharacterController
             return _table_[s, a];
         }
 
-        public void update(State state, Action action)
+        public void QTableUpdate(State state, Action action)
         {
             int s = state.getStateNum();
             int a = (int)action.getAction();
@@ -111,33 +136,68 @@ namespace Invector.vCharacterController
                 if(qa > max_qtbl)   max_qtbl = qa;
             }
             _table_[s, a] = Reward(agent, state, action) + gamma * max_qtbl;
+            now_state = next_state;
+        }
+
+        private void Record()
+        {
+            //Q값, action, state, tau
+        }
+
+        private void initialize_state_table()
+        {
+            //
+            int state_id = 1;
+
         }
 
         private State state_transition(State state, Action action)
         {
+            // get p value
+            float shift = 4 * agent.getSpeed() * t_u; // action마다 speed 부여하는 게 나을 듯
+            float p = 5f * 2f / 3f;
+            Vector3 dir_vec = cc.transform.position - tpCamera.transform.position;
+            dir_vec = dir_vec.normalized;
+
+            if(shift < p)
+            {
+                //TODO
+            }
+            else
+            {
+
+            }
+
             State next_state = new State();
-            /* TODO */
             return next_state;
         }
 
-        public void update_state(State next_state)
+        private void update_state()
         {
-            now_state.update(next_state);
+            /* TODO */
+            // 이곳에서 주어진 조건 아래 state를 갱신
+            // 남은 거리, 지나간 시간, agent의 위치, 맵 정보 등등 활용
         }
 
-        public void setHeights(vThirdPersonController cc, vCamera.vThirdPersonCamera tpCamera, Terrain t){
-            Vector3 dir_vec = cc.transform.position - tpCamera.transform.position;
+        public void investigateMapInfo(){
+            Vector3 dir_vec = getDirectionVector(cc, tpCamera);
             dir_vec = dir_vec.normalized;
+            dir_vec_x = AIMath.rotate(1, -45, dir_vec);
+            dir_vec_z = AIMath.rotate(1, 45, dir_vec);
 
             var worldPos = cc.transform.position;
             int mapX = (int)(((worldPos.x - t.transform.position.x) / t.terrainData.size.x) * t.terrainData.alphamapWidth);
             int mapZ = (int)(((worldPos.z - t.transform.position.z) / t.terrainData.size.z) * t.terrainData.alphamapHeight);
-            float dx = 5f/10f/dir_vec.x, dz = 5f/10f/dir_vec.z;
+            float kx = 5f / RL_Constants.xSize;
+            float kz = 5f / RL_Constants.zSize;
             //string str_debug = "";
 
             for(int i = 0; i < RL_Constants.xSize; ++i) {
                 for(int j = 0; j < RL_Constants.zSize; ++j) {
-                    map_info[i,j] = t.terrainData.GetHeight((int)(mapX + i * dx), (int)(mapZ + j * dz));
+                    float dx = mapX + kx * i * dir_vec_x.x + kz * j * dir_vec_z.x;
+                    float dz = mapZ + kx * i * dir_vec_x.z + kz * j * dir_vec_z.z;
+
+                    map_info[i,j] = t.terrainData.GetHeight((int)(dx), (int)(dz));
                     //str_debug += heights_at_position[i, j].ToString() + " ";
                 }
                 //str_debug += "\n";
@@ -145,28 +205,14 @@ namespace Invector.vCharacterController
             //Debug.Log(str_debug);
         }
 
-        public int run() {
-            State now_state = get_state();
-            if(now_state.getStateNum() == RL_Constants.DEATH_STATE)  return 0;
-            // do something (TODO)
-            Action next_action = new Action();/*env로부터 가장 높은 확률을 가진 action 고르기 */
-            update(now_state, next_action);
-            update_state(state_transition(now_state, next_action));
-            now_action_doing = false;
-            before_action = next_action;
-            return 1;
-        }
-
-        public ref Agent getAgent() { return ref agent; }
-
         //@Env_determine_action
         /*
          * 최댓값이 되는 a를 골라야 함
          * Boltzman approach - https://data-newbie.tistory.com/534
         */
-        public int determine_action(float _tau_)
+        public int determine_action()
         {
-            tau = _tau_;
+            tau *= Math.Pow(learning_rate_tau, lr_exp++);
             for(int i = 0; i < RL_Constants.ACTION_NUM; ++i) {
                 prob_actions[i] = getQvalue(i) / tau;
             }

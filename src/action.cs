@@ -14,6 +14,10 @@ namespace Invector.vCharacterController
     {
         private Activities action_id; // follows Activities
         public Action() { action_id = Activities.Wait; }
+        public Action(int next_action_id)
+        {
+            action_id = (Activities)(next_action_id % RL_Constants.ACTION_NUM);
+        }
         
         /* components */
         public Activities getAction()

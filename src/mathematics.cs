@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Events;
 using System.Linq;
 
 namespace Invector.vCharacterController
@@ -23,6 +26,51 @@ namespace Invector.vCharacterController
 
         public static double Relu(double x) {
             return x < 0.0 ? 0.0 : x;
+        }
+
+        public static Vector3 rotate(int axis, double angle, Vector3 vec)
+        {
+            angle = angle / 180 * Math.PI;
+            float x,y,z;
+            double[,] rotate_matrix = new double[3,3];
+            double cosa = Math.Cos(angle), sina = Math.Sin(angle);
+            if(axis == 0) // x-axis
+            {
+                rotate_matrix[0, 0] = 1.0f;
+                rotate_matrix[1,1] = rotate_matrix[2,2] = cosa;
+                rotate_matrix[1,2] = sina;
+                rotate_matrix[2,1] = -sina;
+            }
+            else if(axis == 1) // y-axis
+            {
+                rotate_matrix[1, 1] = 1.0f;
+                rotate_matrix[0,0] = rotate_matrix[2,2] = cosa;
+                rotate_matrix[0,2] = -sina;
+                rotate_matrix[2,0] = sina;
+            }
+            else if(axis == 2) // z-axis
+            {
+                rotate_matrix[2, 2] = 1.0f;
+                rotate_matrix[1,1] = rotate_matrix[0,0] = cosa;
+                rotate_matrix[0,1] = sina;
+                rotate_matrix[1,0] = -sina;
+            }
+            Vector3[] vectors = new Vector3[3];
+            for(int i = 0; i < 3; ++i) {
+                for(int j = 0; j < 3; ++j) {
+                    vectors[i][j] = rotate_matrix[i, j];
+                }
+                // vectors[i].x = rotate_matrix[i, 0];
+                // vectors[i].y = rotate_matrix[i, 1];
+                // vectors[i].z = rotate_matrix[i, 2];
+            }
+            x = Vector3.Dot(vectors[0], vec);
+            y = Vector3.Dot(vectors[1], vec);
+            z = Vector3.Dot(vectors[2], vec);
+            vec[0] = x;
+            vec[1] = y;
+            vec[2] = z;
+            return vec; 
         }
 
         public static double[] softmax(double[] x)

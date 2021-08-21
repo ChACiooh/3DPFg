@@ -137,7 +137,7 @@ namespace Invector.vCharacterController
             timer = 0f;
             waitingTime = 0.13f;
             t = GameObject.Find("land").GetComponent<Terrain>();
-            my_env = new Environment();
+            my_env = new Environment(waitingTime, 1.0f);
             Debug.Log(t);
 
             cc = GetComponent<vThirdPersonController>();
@@ -457,6 +457,8 @@ namespace Invector.vCharacterController
             JumpInput();
             RollInput();
             //getHeights();
+            my_env.updateEnvrionment(cc, tpCamera, t);
+            my_env.act();
             BehaviorSelector();
 
         }
