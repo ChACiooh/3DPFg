@@ -32,11 +32,11 @@ namespace Invector.vCharacterController
         {
             angle = angle / 180 * Math.PI;
             float x,y,z;
-            double[,] rotate_matrix = new double[3,3];
-            double cosa = Math.Cos(angle), sina = Math.Sin(angle);
+            float[,] rotate_matrix = new float[3,3];
+            float cosa = (float)Math.Cos(angle), sina = (float)Math.Sin(angle);
             if(axis == 0) // x-axis
             {
-                rotate_matrix[0, 0] = 1.0f;
+                rotate_matrix[0,0] = 1.0f;
                 rotate_matrix[1,1] = rotate_matrix[2,2] = cosa;
                 rotate_matrix[1,2] = sina;
                 rotate_matrix[2,1] = -sina;

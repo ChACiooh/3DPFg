@@ -1,3 +1,10 @@
+using System.Collections;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Events;
+using System.Collections.Generic;
+using System;
+
 namespace Invector.vCharacterController
 {
     public class Agent
@@ -17,6 +24,7 @@ namespace Invector.vCharacterController
         }
 
         public void updateSpeed(float _speed_) { speed = _speed_; }
+        public void updateAction(Action new_action) { a_action = new_action; }
         public float getSpeed() { return speed; }
         public Vector3 getDirection() { return direction; }
         public void setDirection(Vector3 new_vec)
