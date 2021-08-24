@@ -24,7 +24,6 @@ namespace Invector.vCharacterController
         }
 
         public void updateSpeed(float _speed_) { speed = _speed_; }
-        public void updateAction(Action new_action) { a_action = new_action; }
         public float getSpeed() { return speed; }
         public Vector3 getDirection() { return direction; }
         public void setDirection(Vector3 new_vec)
