@@ -1,11 +1,7 @@
 class Action:
-    def __init__(self, speed, action_id, input_key=None):
+    def __init__(self, speed, action_id, input_key=None, direction={'x':0, 'y':0, 'z':'1'):
         self.speed = speed
-        self.action_id = action_id
+        self.id = action_id
         self.input_key = input_key
+        self.direction = direction
         
-    def get_action_id(self):
-        return self.action_id
-    
-    def get_action_key(self):
-        return self.input_key
