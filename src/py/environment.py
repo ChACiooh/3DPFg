@@ -1,19 +1,45 @@
 from state import State
 from action import Action
-from agent import Agent
+from agent import Agent, PositionVec
+import math
+
+stamina_area = [19, 39, 59, 79, 100]
+len_stamina_area = len(stamina_area)
+state_maps = {'field':0, 'wall':len_stamina_area, 
+              'highair':len_stamina_area*2, 
+              'lowair':len_stamina_area*3, 
+              'goal':len_stamina_area*4, 'death':len_stamina_area*4+1}
+
+def EuclideanDistance(pos1, pos2):
+    x2 = pos1.x - pos2.x
+    x2 *= x2
+    y2 = pos1.y - pos2.y
+    y2 *= y2
+    z2 = pos1.z - pos2.z
+    z2 *= z2
+    
+    return math.sqrt(x2+y2+z2)
+
+
 
 class Environment:
-    def __init__(self, agent, map_info, 
+    def __init__(self, agent, map_info, goal_position,
                  num_states, num_actions, 
                  state_ids, action_ids, 
                  consume_stamina_info, 
                  fall_damage,
                  fall_min_height,
+                 MAX_timestep=500,
                  MAX_stamina=100, 
                  waiting_time=2, 
                  parachute_height=3):
+        self.initial_agent = agent
         self.agent = agent
+        self.initial_state = State(EuclideanDistance(self.agent.get_current_pos(), goal_position), state_id='field',
+                                             state_maps['field']+len_stamina_area-1)
+        self.state = self.initial_state
         self.map_info = map_info
+        self.goal_position = goal_position
         self.num_states = num_states
         self.num_actions = num_actions
         self.state_ids = state_ids
@@ -21,22 +47,37 @@ class Environment:
         self.consume_stamina_info = consume_stamina_info
         self.fall_damage = fall_damage
         self.fall_min_height = fall_min_height
+        self.MAX_timestep = MAX_timestep
         self.MAX_stamina = MAX_stamina
         self.waiting_time = waiting_time
         self.parachute_height = parachute_height
-
-    def state_transition(self, state, action):
-        if state.id == 'death' or state.id == 'goal':
-            return state
         
-        speed = action.get_speed()
+        self.dataset = []
+
+    def cal_next_pos(self, state, action):
+        pos = self.agent.get_current_position()
+        if state.id == 'death' or state.id == 'goal':
+            return pos
+        
+        speed = action.speed
         shift = speed * self.action_time
-        x, y, z = self.agent.get_current_position()
+        
+        x = pos.x
+        y = pos.y
+        z = pos.z
         direction = action.direction
         
         nx = x + direction['x']
         ny = y + direction['y']
         nz = z + direction['z']
+        return PositionVec(nx, ny, nz)
+    
+    def state_transition(self, state, action):
+        if state.id == 'death' or state.id == 'goal':
+            return state
+        
+        next_pos = cal_next_pos(state, action)
+        nx, ny, nz = next_pos.get_position()
         
         def calc_fall_damage():
             fall_height = y - ny - self.fall_min_height
@@ -48,7 +89,7 @@ class Environment:
         elif stamina > self.MAX_stamina:
             stamina = self.MAX_stamina
 
-        remained_distance = # TODO:calculate
+        remained_distance = EuclideanDistance(next_pos, self.goal_position)
         
         #next_state = State(remained_distance, state_id, spend_time=state.spend_time+self.waiting_time)
         if y == ny or ny == self.map_info[nx][nz]:
@@ -68,80 +109,51 @@ class Environment:
             else:
                 next_state_id = 'lowair'
         
+        if next_state_id != 'death' and next_state_id != 'goal':
+            for i in range(len_stamina_area):
+                if stamina <= stamina_area[i]:
+                    next_state_no = state_maps[next_state_id] + i
+                    break
                 
-        self.agent.action = action
-        self.agent.update_position(nx, ny, nz)
+        #self.agent.action = action
+        #self.agent.update_position(nx, ny, nz)
+        next_state = State(remained_distance, next_state_id, next_state_no, spend_time=state.spend_time+self.waiting_time)
+        
+        return next_state, next_pos
     
-
-"""
-private State state_transition(State state, Action action)
-        {
-            // get p value
-            State next_state = new State();
-
-            float shift = 4 * agent.getSpeed() * t_u; // action마다 speed 부여하는 게 나을 듯
-            float p = 5.0f; // 5m 정의
-            Vector3 dir_vec = cc.transform.position - tpCamera.transform.position;
-            dir_vec = dir_vec.normalized;
-
-            var worldPos = cc.transform.position;
-            int mapX = (int)(((worldPos.x - t.transform.position.x) / t.terrainData.size.x) * t.terrainData.alphamapWidth);
-            int mapZ = (int)(((worldPos.z - t.transform.position.z) / t.terrainData.size.z) * t.terrainData.alphamapHeight);
-
-            float dx = dir_vec.x, dz = dir_vec.z, delta_height = 0f;
-            int i, j = 0;
-
-            for(i = 0; i < RL_Constants.xSize; ++i)
-            {
-                bool flag = false;
-                for(j = 0; j < RL_Constants.zSize; ++j)
-                {
-                    delta_height = map_info[i, j] - map_info[0, 0];
-                    if(Math.Abs(delta_height) >= 1.5f)
-                    {
-                        p = (float)Math.Sqrt((i * dx) * (i * dx) + (j * dz) * (j * dz));
-                        flag = true;
-                        break;
-                    }
-                }
-                if(flag)    break;
-            }
-
-            //if(before_action.getAction())
-            // TODO : action에 따른 스태미나 감소 등 처리
-            // 사망 관련 진단도 해야 한다.
-            if(shift < p)
-            {
-                // keep going
-                next_state = now_state;
-            }
-            else
-            {
-                // determine action
-                if(i < RL_Constants.xSize && j < RL_Constants.zSize)
-                {
-                    double angle = Math.Atan((double)delta_height);
-                    Activities activity;
-                    if(angle >= Math.PI / 4)
-                    {
-                        // 등반하는 state로 전이시키기
-                        // TODO : next_state.뭐시기, stamina 참고하면서 state 다른 번호로 분류
-                        activity = Activities.Climb;
-                    }
-                    else
-                    {
-                        // 낙하하는 state로 전이시키기
-                        // TODO : next_state.뭐시기
-                        activity = Activities.FF;
-                    }
-                }
-                else
-                {
-                    // keep going
-                    next_state = now_state;
-                }
-            }
-            
-            return next_state;
-        }
-"""
+    def reward(self, state, action):
+        next_state, next_pos = state_transition(state, action)
+        deltaDistance = next_state.remained_distance - state.remained_distance
+        
+        return -deltaDistance, next_state, next_pos
+    
+    def make_scenarios(self, n=10):
+        for batch in range(n):
+            scenario = []
+            self.agent = self.initial_agent
+            self.state = self.initial_state
+            action = self.agent.action
+            for t in range(self.MAX_timestep):
+                r, ns, np = reward(state, action)
+                scenario.append((r, state, action))
+                if ns.state_id == 'death' or ns.state_id == 'goal':
+                    break
+            r_sum = 0
+            for scene in scenario:
+                r_sum += scene[0]
+            for t in range(1, len(scenario)):
+                scenario[t][0] -= scenario[t-1][0] # calculate return to go
+                
+            self.dataset.append(scenario)
+        
+        return self.dataset
+    
+    def reset(self, dataset_initialize=False):
+        self.agent = self.initial_agent
+        self.state = self.initial_state
+        if dataset_initialize == True:
+            self.dataset = []
+    
+    
+    
+    
