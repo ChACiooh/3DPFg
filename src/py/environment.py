@@ -23,6 +23,18 @@ def EuclideanDistance(pos1, pos2):
 
 
 class Environment:
+    # agent : agent object
+    # map_info : 2d array to represent current map's heights
+    # goal_position : position object
+    # num_states : number of states
+    # num_actions : number of actions
+    # consume_stamina_info : stamina consume amount / fps with respect to action id(integer)
+    # fall_damage : damage that reduces agents' HP when he fall.
+    # fall_min_height : the height that can make damage
+    # MAX_timestep : cutting size
+    # MAX_stamina : maximum stamina value that agent can have
+    # waiting_time : time until gain next action, unit_time=sec
+    # parachute_height : minimum height that agent can unfold his parachute.
     def __init__(self, agent, map_info, goal_position,
                  num_states, num_actions, 
                  state_ids, action_ids, 
@@ -36,7 +48,7 @@ class Environment:
         self.initial_agent = agent
         self.agent = agent
         self.initial_state = State(EuclideanDistance(self.agent.get_current_pos(), goal_position), state_id='field',
-                                             state_maps['field']+len_stamina_area-1)
+                                             spend_time=state_maps['field']+len_stamina_area-1)
         self.state = self.initial_state
         self.map_info = map_info
         self.goal_position = goal_position
