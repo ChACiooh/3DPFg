@@ -1,19 +1,13 @@
 from action import Action
+import numpy as np
 
-class PositionVec:
-    def __init__(self, x, y, z):
-        self.x=x
-        self.y=y
-        self.z=z
-    def get_position(self):
-        return self.x, self.y, self.z
 
 class Agent:
-    def __init__(self, start_x=0.0, start_y=0.0, start_z=0.0, HP=100, stamina=100, agent_action=Action(speed=0, action_id=0)):
-        self.pos = PositionVec(start_x, start_y, start_z)
+    def __init__(self, start_x=0.0, start_y=0.0, start_z=0.0, HP=100, stamina=100):
+        self.pos = np.array([start_x, start_y, start_z])
         self.HP = HP
         self.stamina = stamina
-        self.action = agent_action
+        self.action = Action(acting_time=1.3, action_id=0, velocity=np.array([0.,0.,0.]))
     
     def get_current_position(self):
         return self.pos

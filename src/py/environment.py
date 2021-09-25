@@ -1,6 +1,7 @@
 from state import State
 from action import Action
-from agent import Agent, PositionVec
+from agent import Agent
+import numpy as np
 import math
 
 stamina_area = [19, 39, 59, 79, 100]
@@ -11,14 +12,8 @@ state_maps = {'field':0, 'wall':len_stamina_area,
               'goal':len_stamina_area*4, 'death':len_stamina_area*4+1}
 
 def EuclideanDistance(pos1, pos2):
-    x2 = pos1.x - pos2.x
-    x2 *= x2
-    y2 = pos1.y - pos2.y
-    y2 *= y2
-    z2 = pos1.z - pos2.z
-    z2 *= z2
-    
-    return math.sqrt(x2+y2+z2)
+    pos3 = pos2 - pos1
+    return math.sqrt(np.dot(pos3, pos3))
 
 
 
@@ -42,9 +37,10 @@ class Environment:
                  fall_damage,
                  fall_min_height,
                  MAX_timestep=500,
-                 MAX_stamina=100, 
-                 waiting_time=2, 
-                 parachute_height=3):
+                 MAX_stamina=200, 
+                 unit_time=1.3, 
+                 parachute_height=3,
+                 gravitial_acc=9.8):
         self.initial_agent = agent
         self.agent = agent
         self.initial_state = State(EuclideanDistance(self.agent.get_current_pos(), goal_position), state_id='field',
@@ -61,28 +57,19 @@ class Environment:
         self.fall_min_height = fall_min_height
         self.MAX_timestep = MAX_timestep
         self.MAX_stamina = MAX_stamina
-        self.waiting_time = waiting_time
+        self.unit_time = unit_time
         self.parachute_height = parachute_height
-        
+        self.g = np.array([0., gravitial_acc, 0.])
         self.dataset = []
 
     def cal_next_pos(self, state, action):
         pos = self.agent.get_current_position()
-        if state.id == 'death' or state.id == 'goal':
+        if state.id == 'death' or state.id == 'goal' or action.action_id == 'Wait':
             return pos
         
-        speed = action.speed
-        shift = speed * self.action_time
+        next_pos = pos + action.velocity*self.unit_time - 1/2 * self.g * (self.unit_time ** 2)
         
-        x = pos.x
-        y = pos.y
-        z = pos.z
-        direction = action.direction
-        
-        nx = x + direction['x']
-        ny = y + direction['y']
-        nz = z + direction['z']
-        return PositionVec(nx, ny, nz)
+        return next_pos
     
     def state_transition(self, state, action):
         if state.id == 'death' or state.id == 'goal':
@@ -103,7 +90,7 @@ class Environment:
 
         remained_distance = EuclideanDistance(next_pos, self.goal_position)
         
-        #next_state = State(remained_distance, state_id, spend_time=state.spend_time+self.waiting_time)
+        #next_state = State(remained_distance, state_id, spend_time=state.spend_time+self.unit_time)
         if y == ny or ny == self.map_info[nx][nz]:
             next_state_id  = state.id
             self.agent.HP -= calc_fall_damage()
@@ -129,7 +116,7 @@ class Environment:
                 
         #self.agent.action = action
         #self.agent.update_position(nx, ny, nz)
-        next_state = State(remained_distance, next_state_id, next_state_no, spend_time=state.spend_time+self.waiting_time)
+        next_state = State(remained_distance, next_state_id, next_state_no, spend_time=state.spend_time+self.unit_time)
         
         return next_state, next_pos
     
