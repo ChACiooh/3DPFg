@@ -8,6 +8,7 @@ class Agent:
         self.HP = HP
         self.stamina = stamina
         self.action = Action(acting_time=1.3, action_id=0, velocity=np.array([0.,0.,0.]))
+        self.dir = np.array([0., 0., 1.])
     
     def get_current_position(self):
         return self.pos
@@ -20,3 +21,7 @@ class Agent:
     
     def update_position(self, pos):
         self.pos = pos
+        
+    def update_action(self, action):
+        self.action = action
+        self.dir = action.velocity / np.sqrt(np.dot(action.velocity, action.velocity))
