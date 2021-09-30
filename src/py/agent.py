@@ -7,7 +7,8 @@ class Agent:
         self.pos = np.array([start_x, start_y, start_z])
         self.HP = HP
         self.stamina = stamina
-        self.action = Action(acting_time=1.3, action_id=0, velocity=np.array([0.,0.,0.]))
+        #Action(action_id, veclocity, acting_time=1.3, stamina_consume=-4.8, input_key=None)
+        self.action = Action(action_id='Wait', velocity=np.array([0.,0.,0.]))
         self.dir = np.array([0., 0., 1.])
     
     def get_current_position(self):

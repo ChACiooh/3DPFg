@@ -1,5 +1,6 @@
 from state import State
 from action import Action
+from action import *
 from agent import Agent
 import numpy as np
 import math
@@ -16,7 +17,7 @@ def vector_size(vec):
 
 def norm(vec):
     _size_ = vector_size(vec)
-    return vec / _size_
+    return vec / _size_ if _size_ != 0 else 0
 
 def EuclideanDistance(pos1, pos2):
     pos3 = pos2 - pos1
@@ -50,8 +51,9 @@ class Environment:
                  gliding_down=10.0):
         self.initial_agent = agent
         self.agent = agent
-        self.initial_state = State(EuclideanDistance(self.agent.get_current_pos(), goal_position), state_id='field',
-                                             spend_time=state_maps['field']+len_stamina_area-1)
+        #State(remained_distance, state_id, state_no, spend_time=0)
+        self.initial_state = State(EuclideanDistance(self.agent.get_current_position(), goal_position), state_id='field',
+                                    state_no=len_stamina_area-1)
         self.state = self.initial_state
         self.map_info = map_info
         self.goal_position = goal_position
@@ -59,7 +61,7 @@ class Environment:
         self.num_actions = num_actions
         self.state_ids = state_ids
         self.action_ids = action_ids
-        self.consume_stamina_info = consume_stamina_info
+        self.consume_stamina_info = consume_stamina_info    # TODO : remove
         self.fall_damage = fall_damage
         self.fall_min_height = fall_min_height
         self.MAX_timestep = MAX_timestep
@@ -76,11 +78,11 @@ class Environment:
             return pos
         
         # 60 frame으로 나눠서 충돌 테스트
-        t = action.action_time / 60
+        t = action.acting_time / 60
         next_pos = pos
         next_state_id = state.id
-        while t <= action.action_time:
-            
+        while t <= action.acting_time:
+            # t frame마다 속도 v의 단위벡터만큼 진행하면서 충돌 테스트를 진행한다.
             x, y, z = next_pos[0], next_pos[1], next_pos[2]
             if y < self.map_info[int(x), int(z)]:
                 if self.map_info[int(x), int(z)] - y > 10:  # 10보다 작거나 같은 경우에는 그냥 그 높이에 agent를 붙여준다.
@@ -92,13 +94,13 @@ class Environment:
                     z1 = z
                     x2 = x
                     z2 = z
-                    while v1 != self.map_info[int(x), int(z)]:
+                    while y1 != self.map_info[int(x), int(z)]:
                         x1 = x1 + v[0]*theta
                         z1 = z1 + v[2]*theta
                         y1 = self.map_info[int(x1), int(z1)]
                         theta += 1/60
                     theta = 0
-                    while v2 != self.map_info[int(x), int(z)]:
+                    while y2 != self.map_info[int(x), int(z)]:
                         x2 = x2 + v[0]*theta
                         z2 = z2 + v[2]*theta
                         y2 = self.map_info[int(x2), int(z2)]
@@ -123,7 +125,8 @@ class Environment:
             elif next_state_id == 'parachute':
                 next_pos = next_pos - self.gliding_down * t
             t += action.action_time / 60
-        
+        # while end
+
         if next_pos[1] > self.map_info[next_pos[0], next_pos[2]]:
             next_state_id = 'air'
         return next_pos, next_state_id
@@ -131,16 +134,18 @@ class Environment:
     def state_transition(self, state, action):
         if state.id == 'death' or state.id == 'goal':
             return state
-        
-        next_pos, next_state_id = cal_next_pos(state, action)
+        y = self.agent.pos[1]
+        next_pos, next_state_id = self.cal_next_pos(state, action)
         nx, ny, nz = next_pos[0], next_pos[1], next_pos[2]
         
-        def calc_fall_damage():
+        def calc_fall_damage(y, ny):
             fall_height = y - ny - self.fall_min_height
             return 0 if fall_height <= 0 else fall_height * self.fall_damage
         
-        stamina = self.agent.stamina - self.consume_stamina_info[action.id]
-        if stamina < 0:
+        # acting_time만큼 지날 동안 action.stamina_consume을 소모
+        stamina = self.agent.stamina - action.stamina_consume * (base_acting_time / action.acting_time)
+        stamina = int(stamina)
+        if stamina <= 0:
             stamina = 0
         elif stamina > self.MAX_stamina:
             stamina = self.MAX_stamina
@@ -150,7 +155,7 @@ class Environment:
         #next_state = State(remained_distance, state_id, spend_time=state.spend_time+self.unit_time)
         if y == ny or ny == self.map_info[nx, nz]:
             next_state_id  = state.id
-            self.agent.HP -= calc_fall_damage()
+            self.agent.HP -= calc_fall_damage(y, ny)
             if self.agent.HP <= 0:
                 next_state_id = 'death'
         
@@ -168,35 +173,53 @@ class Environment:
     
     
     def reward(self, state, action):
-        next_state, next_pos = state_transition(state, action)
+        next_state, next_pos = self.state_transition(state, action)
         deltaDistance = next_state.remained_distance - state.remained_distance
         
         return -deltaDistance, next_state, next_pos
     
     def get_random_action(self):
         _keys_ = list(self.action_ids.keys())
-        return np.random.randint(len(_keys_), size=1)
+        key = np.random.randint(len(_keys_), size=1)
+        return key, self.action_ids[key]
     
     def make_scenarios(self, n=10):
-        for batch in range(n):
+        for _ in range(n):
             scenario = []
             self.agent = self.initial_agent
             state = self.initial_state
             action = self.agent.action
             for t in range(self.MAX_timestep):
-                r, ns, np = reward(state, action)
+                r, ns, np = self.reward(state, action)
                 scenario.append((r, state, action))
                 state = ns
                 if state.state_id == 'death' or state.state_id == 'goal':
                     break
-                next_action_id = self.get_random_action()
-                action.action_update(next_action_id, self.action_ids[next_action_id], self.agent.dir)
+                next_key_input, next_action_id = self.get_random_action()
+                stamina_consume = base_stamina_consume # 회복수치, -4.8
+                acting_time = base_acting_time # 1.3sec
+                if state.id == 'air':
+                    stamina_consume = 0
+                elif state.id == 'field':
+                    if 's' in next_key_input:
+                        stamina_consume = 20
+                        acting_time = 1
+                    if 'j' in next_key_input:
+                        stamina_consume = 1 if stamina_consume == -4.8 else stamina_consume + 1
+                elif state.id == 'wall':
+                    if 'j' in next_key_input:
+                        stamina_consume = 25
+                elif state.id == 'parachute':
+                    stamina_consume = 2
+                    acting_time = 1
+                
+                self.agent.dir = action.action_update(next_action_id, next_key_input, stamina_consume, acting_time, self.agent.dir)
                 self.agent.action.update_action(action)
             r_sum = 0
             if state.state_id == 'goal':
                 for scene in scenario:
                     r_sum += scene[0]
-            elif state.state_id == 'death'
+            elif state.state_id == 'death':
                 r_sum = -10000000
                 
             for t in range(1, len(scenario)):
