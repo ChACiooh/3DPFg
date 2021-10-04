@@ -6,11 +6,18 @@ angles = {'D':0., 'W':np.pi/2, 'A':np.pi, 'S':-np.pi/2,
          'WD':np.pi/4, 'WA':np.pi*3/4, 'SD':-np.pi/4, 'SA':-np.pi*3/4}
 
 def rotate_matrix(angle):
-    return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+    R_matrix = np.array([[np.cos(angle), 0., np.sin(angle)],
+                         [0., 1., 0.],
+                         [-np.sin(angle), 0., np.cos(angle)]])
+    return R_matrix
 
 def change_direction(direction, input_key):
     # direction is numpy array vector
-    return rotate_matrix(angles[input_key]) * rotate_matrix(angle=0) * direction
+    key = ''
+    for k in input_key:
+        if k in 'WASD':
+            key += k
+    return np.matmul(np.matmul(rotate_matrix(angles[key]), rotate_matrix(angle=0)), direction)
     
 
 class Action:
@@ -39,4 +46,11 @@ class Action:
         if 's' in input_key:
             self.velocity = self.velocity / 4 * 6
         return agent_dir
+
+    def Update(self, action):
+        self.acting_time = action.acting_time
+        self.action_id = action.action_id
+        self.input_key = action.input_key
+        self.velocity = action.velocity
+        self.stamina_consume = action.stamina_consume
         

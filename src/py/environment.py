@@ -72,10 +72,17 @@ class Environment:
         self.gliding_down = np.array([0., gliding_down, 0.])
         self.dataset = []
 
+
+    def inBound(self, x, z):
+        if x < 0 or x >= len(self.map_info) or z < 0 or z >= len(self.map_info[0]):
+            return False
+        return True
+
+
     def cal_next_pos(self, state, action):
         pos = self.agent.get_current_position()
         if state.id == 'death' or state.id == 'goal' or action.action_id == 'Wait':
-            return pos
+            return pos, state.id
         
         # 60 frame으로 나눠서 충돌 테스트
         t = action.acting_time / 60
@@ -84,6 +91,9 @@ class Environment:
         while t <= action.acting_time:
             # t frame마다 속도 v의 단위벡터만큼 진행하면서 충돌 테스트를 진행한다.
             x, y, z = next_pos[0], next_pos[1], next_pos[2]
+            if self.inBound(x, z) == False:
+                return next_pos, 'death'
+
             if y < self.map_info[int(x), int(z)]:
                 if self.map_info[int(x), int(z)] - y > 10:  # 10보다 작거나 같은 경우에는 그냥 그 높이에 agent를 붙여준다.
                     y1 = self.map_info[int(x), int(z)]
@@ -124,16 +134,16 @@ class Environment:
                 next_pos = next_pos - 1/2 * self.g * (t ** 2)
             elif next_state_id == 'parachute':
                 next_pos = next_pos - self.gliding_down * t
-            t += action.action_time / 60
+            t += action.acting_time / 60
         # while end
 
-        if next_pos[1] > self.map_info[next_pos[0], next_pos[2]]:
+        if next_pos[1] > self.map_info[int(next_pos[0]), int(next_pos[2])]:
             next_state_id = 'air'
         return next_pos, next_state_id
     
     def state_transition(self, state, action):
         if state.id == 'death' or state.id == 'goal':
-            return state
+            return state, self.agent.get_current_pos()
         y = self.agent.pos[1]
         next_pos, next_state_id = self.cal_next_pos(state, action)
         nx, ny, nz = next_pos[0], next_pos[1], next_pos[2]
@@ -153,12 +163,13 @@ class Environment:
         remained_distance = EuclideanDistance(next_pos, self.goal_position)
         
         #next_state = State(remained_distance, state_id, spend_time=state.spend_time+self.unit_time)
-        if y == ny or ny == self.map_info[nx, nz]:
+        if self.inBound(nx, nz) == True and (y == ny or ny == self.map_info[int(nx), int(nz)]):
             next_state_id  = state.id
             self.agent.HP -= calc_fall_damage(y, ny)
             if self.agent.HP <= 0:
                 next_state_id = 'death'
         
+        next_state_no = state.no
         if next_state_id != 'death' and next_state_id != 'goal':
             for i in range(len_stamina_area):
                 if stamina <= stamina_area[i]:
@@ -180,8 +191,8 @@ class Environment:
     
     def get_random_action(self):
         _keys_ = list(self.action_ids.keys())
-        key = np.random.randint(len(_keys_), size=1)
-        return key, self.action_ids[key]
+        key = int(np.random.randint(len(_keys_), size=1))
+        return _keys_[key], self.action_ids[_keys_[key]]
     
     def make_scenarios(self, n=10):
         for _ in range(n):
@@ -193,7 +204,7 @@ class Environment:
                 r, ns, np = self.reward(state, action)
                 scenario.append((r, state, action))
                 state = ns
-                if state.state_id == 'death' or state.state_id == 'goal':
+                if state.id == 'death' or state.id == 'goal':
                     break
                 next_key_input, next_action_id = self.get_random_action()
                 stamina_consume = base_stamina_consume # 회복수치, -4.8
@@ -213,17 +224,19 @@ class Environment:
                     stamina_consume = 2
                     acting_time = 1
                 
+                self.agent.update_position(np)
                 self.agent.dir = action.action_update(next_action_id, next_key_input, stamina_consume, acting_time, self.agent.dir)
-                self.agent.action.update_action(action)
+                self.agent.action.Update(action)
             r_sum = 0
-            if state.state_id == 'goal':
+            if state.id == 'goal':
                 for scene in scenario:
-                    r_sum += scene[0]
-            elif state.state_id == 'death':
+                    r_sum += scene[0]   # TODO 이거 어디다 쓰려고 했는지 파악하기
+            elif state.id == 'death':
                 r_sum = -10000000
                 
             for t in range(1, len(scenario)):
-                scenario[t][0] -= scenario[t-1][0] # calculate return to go
+                r_t = scenario[t][0] - scenario[t-1][0]
+                scenario[t] = (r_t, scenario[t][1], scenario[t][2]) # to calculate return to go
                 
             self.dataset.append(scenario)
         
