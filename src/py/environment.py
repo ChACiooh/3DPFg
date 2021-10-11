@@ -7,6 +7,7 @@ import math
 
 stamina_area = [19, 39, 59, 79, 100]
 len_stamina_area = len(stamina_area)
+# starting point of state_ids
 state_maps = {'field':0, 'wall':len_stamina_area, 
               'highair':len_stamina_area*2, 
               'lowair':len_stamina_area*3, 
@@ -40,7 +41,6 @@ class Environment:
     def __init__(self, agent, map_info, goal_position,
                  num_states, num_actions, 
                  state_ids, action_ids, 
-                 consume_stamina_info, 
                  fall_damage,
                  fall_min_height,
                  MAX_timestep=500,
@@ -50,9 +50,9 @@ class Environment:
                  gravitial_acc=9.8,
                  gliding_down=10.0):
         self.initial_agent = agent
-        self.agent = agent
+        self.agent = None
         #State(remained_distance, state_id, state_no, spend_time=0)
-        self.initial_state = State(EuclideanDistance(self.agent.get_current_position(), goal_position), state_id='field',
+        self.initial_state = State(EuclideanDistance(self.initial_agent.get_current_position(), goal_position), state_id='field',
                                     state_no=len_stamina_area-1)
         self.state = self.initial_state
         self.map_info = map_info
@@ -61,7 +61,7 @@ class Environment:
         self.num_actions = num_actions
         self.state_ids = state_ids
         self.action_ids = action_ids
-        self.consume_stamina_info = consume_stamina_info    # TODO : remove
+        #self.consume_stamina_info = consume_stamina_info
         self.fall_damage = fall_damage
         self.fall_min_height = fall_min_height
         self.MAX_timestep = MAX_timestep
@@ -74,9 +74,7 @@ class Environment:
 
 
     def inBound(self, x, z):
-        if x < 0 or x >= len(self.map_info) or z < 0 or z >= len(self.map_info[0]):
-            return False
-        return True
+        return not (x < 0 or x >= len(self.map_info) or z < 0 or z >= len(self.map_info[0]))
 
 
     def cal_next_pos(self, state, action):
@@ -172,7 +170,7 @@ class Environment:
         next_state_no = state.no
         if next_state_id != 'death' and next_state_id != 'goal':
             for i in range(len_stamina_area):
-                if stamina <= stamina_area[i]:
+                if stamina / self.MAX_stamina * 100.0 <= stamina_area[i]:
                     next_state_no = state_maps[next_state_id] + i
                     break
                 
@@ -195,15 +193,22 @@ class Environment:
         return _keys_[key], self.action_ids[_keys_[key]]
     
     def make_scenarios(self, n=10):
-        for _ in range(n):
+        complete = 0
+        tle_cnt = 0
+        # print('action_id["Wait"] =', self.action_ids['Wait'])
+        self.agent = Agent.from_agent(self.initial_agent)
+        state = State.from_state(self.initial_state)
+        while complete < n:
             scenario = []
-            self.agent = self.initial_agent
-            state = self.initial_state
-            action = self.agent.action
+            self.agent.Update(self.initial_agent)
+            state.Update(self.initial_state)
+            action = self.agent.action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
             for t in range(self.MAX_timestep):
-                r, ns, np = self.reward(state, action)
-                scenario.append((r, state, action))
-                state = ns
+                r, ns, next_pos = self.reward(state, action) # copy, not ref
+                scenario.append([r, state.no, action.action_id])
+
+                # calculate next situation
+                state = ns  # ok
                 if state.id == 'death' or state.id == 'goal':
                     break
                 next_key_input, next_action_id = self.get_random_action()
@@ -223,22 +228,35 @@ class Environment:
                 elif state.id == 'parachute':
                     stamina_consume = 2
                     acting_time = 1
+                elif state.id == 'goal' or state.id == 'death':
+                    break
                 
-                self.agent.update_position(np)
+                if t == self.MAX_timestep - 1:
+                    tle_cnt += 1
+                    print('Time over.')
+                    print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
+                    break
+
+                self.agent.update_position(next_pos)
+                # return value of action_update is newly constructed.
+                # So, it is okay.
                 self.agent.dir = action.action_update(next_action_id, next_key_input, stamina_consume, acting_time, self.agent.dir)
                 self.agent.action.Update(action)
-            r_sum = 0
+            # steps ended.
+
             if state.id == 'goal':
-                for scene in scenario:
-                    r_sum += scene[0]   # TODO 이거 어디다 쓰려고 했는지 파악하기
-            elif state.id == 'death':
-                r_sum = -10000000
-                
-            for t in range(1, len(scenario)):
-                r_t = scenario[t][0] - scenario[t-1][0]
-                scenario[t] = (r_t, scenario[t][1], scenario[t][2]) # to calculate return to go
-                
-            self.dataset.append(scenario)
+                r_t = 0
+                len_scenario = len(scenario)
+                for t in range(1, len_scenario):
+                    r_t += scenario[len_scenario - t][0]
+                    scenario[len_scenario - t][0] = r_t # calculate return to go
+                self.dataset.append(scenario)
+                complete += 1
+                print('complete {} / {}'.format(complete, n))
+
+            if tle_cnt >= n * n * n:
+                print('Failed.\nIt needs to add Time-steps.')
+                break
         
         return self.dataset
     

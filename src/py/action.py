@@ -25,7 +25,7 @@ class Action:
         self.acting_time = acting_time
         self.action_id = action_id
         self.input_key = input_key
-        self.velocity = velocity # numpy array vector
+        self.velocity = np.copy(velocity) # numpy array vector
         self.stamina_consume = stamina_consume
 
         
@@ -51,6 +51,6 @@ class Action:
         self.acting_time = action.acting_time
         self.action_id = action.action_id
         self.input_key = action.input_key
-        self.velocity = action.velocity
+        self.velocity = np.copy(action.velocity)
         self.stamina_consume = action.stamina_consume
         
