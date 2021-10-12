@@ -48,6 +48,7 @@ class Environment:
                  unit_time=1.3, 
                  parachute_height=3,
                  gravitial_acc=9.8,
+                 climb_angle=60,
                  gliding_down=10.0):
         self.initial_agent = agent
         self.agent = None
@@ -69,6 +70,7 @@ class Environment:
         self.unit_time = unit_time
         self.parachute_height = parachute_height
         self.g = np.array([0., gravitial_acc, 0.])
+        self.climb_angle = climb_angle
         self.gliding_down = np.array([0., gliding_down, 0.])
         self.dataset = []
 
@@ -76,67 +78,61 @@ class Environment:
     def inBound(self, x, z):
         return not (x < 0 or x >= len(self.map_info) or z < 0 or z >= len(self.map_info[0]))
 
+    def isWall(self, x1, z1, x2, z2):
+        tangent = (self.map_info[x1, z1] - self.map_info[x2, z2]) / EuclideanDistance(np.array([x1, 0, z1]), np.array([x2, 0, z2]))
+        angle = np.arctan(abs(tangent))
+
+        if angle >= self.climb_angle * np.pi / 180:
+            return True
+
+        return False
 
     def cal_next_pos(self, state, action):
-        pos = self.agent.get_current_position()
+        next_pos = self.agent.get_current_position()
+        next_state_id = state.id
         if state.id == 'death' or state.id == 'goal' or action.action_id == 'Wait':
-            return pos, state.id
-        
+            return next_pos, state.id
+        elif state.id == 'air' and action.action_id != None and 'j' in action.action_id:
+            next_state_id = 'parachute'
+            # parachute mode on
+            
+        """
+            TODO : 현재 action에 모든 velocity 정보가 담겨 있다고 가정된 상태.
+            그러나 현재 state에 따라서 그 velocity도 당연히 달라져야 한다
+            이를테면 air상태와 parachute의 상태는 달라지기 때문에 parachute 모드일 때 velocity 조정 필요
+            또한, 이 method에 들어온 시점에서 field가 아닌 state일 때에 대한 물리 옵션 확인 필요
+        """
         # 60 frame으로 나눠서 충돌 테스트
         t = action.acting_time / 60
-        next_pos = pos
-        next_state_id = state.id
+        
+        prev_pos = self.agent.get_current_position()
+        v_xz = np.array([action.velocity[0], 0., action.velocity[2]])
+        v_y = np.array([0., action.velocity[1], 0.])
+
+        y_err = 0.1
         while t <= action.acting_time:
-            # t frame마다 속도 v의 단위벡터만큼 진행하면서 충돌 테스트를 진행한다.
-            x, y, z = next_pos[0], next_pos[1], next_pos[2]
-            if self.inBound(x, z) == False:
+            if self.inBound(next_pos[0], next_pos[2]):
                 return next_pos, 'death'
+            next_pos = next_pos + v_xz*t
+            if next_state_id == 'air' or next_state_id == 'parachute':
+                next_pos += (v_y - self.g*t)*t
 
-            if y < self.map_info[int(x), int(z)]:
-                if self.map_info[int(x), int(z)] - y > 10:  # 10보다 작거나 같은 경우에는 그냥 그 높이에 agent를 붙여준다.
-                    y1 = self.map_info[int(x), int(z)]
-                    y2 = self.map_info[int(x), int(z)]
-                    theta = 0
-                    v = norm(action.velocity)
-                    x1 = x
-                    z1 = z
-                    x2 = x
-                    z2 = z
-                    while y1 != self.map_info[int(x), int(z)]:
-                        x1 = x1 + v[0]*theta
-                        z1 = z1 + v[2]*theta
-                        y1 = self.map_info[int(x1), int(z1)]
-                        theta += 1/60
-                    theta = 0
-                    while y2 != self.map_info[int(x), int(z)]:
-                        x2 = x2 + v[0]*theta
-                        z2 = z2 + v[2]*theta
-                        y2 = self.map_info[int(x2), int(z2)]
-                        theta += 1/60
+            x, y, z = next_pos[0], next_pos[1], next_pos[2]
+
+            if next_state_id == 'air' or next_state_id == 'parachute':
+                if abs(y, self.map_info[x, z]) <= y_err:
+                    next_pos[1] = self.map_info[x, z]
+                    next_state_id = 'field'
+                    if action.input_key != None and 'j' in action.input_key:
+                        # jump action end.
+                        break
                     
-                    p1 = np.array([x1, 0., z1])
-                    p2 = np.array([x2, 0., z2])
-                    angle = np.arctan(y1 - y2, EuclideanDistance(p1, p2))
-                    if math.abs(angle) >= math.pi / 2:
-                        next_state_id = 'wall'
-                    else:
-                        next_state_id = 'field'
+            if self.isWall(prev_pos[0], prev_pos[2], next_pos[0], next_pos[2]) == True:
+                next_state_id = 'wall'
                 break
-                
-            next_pos = next_pos + action.velocity*t
-            
-            if y > self.map_info[int(x), int(z)]:
-                next_state_id = 'air'
-            
-            if next_state_id == 'air':
-                next_pos = next_pos - 1/2 * self.g * (t ** 2)
-            elif next_state_id == 'parachute':
-                next_pos = next_pos - self.gliding_down * t
+            prev_pos = np.copy(next_pos)
             t += action.acting_time / 60
-        # while end
 
-        if next_pos[1] > self.map_info[int(next_pos[0]), int(next_pos[2])]:
-            next_state_id = 'air'
         return next_pos, next_state_id
     
     def state_transition(self, state, action):
@@ -204,8 +200,17 @@ class Environment:
             state.Update(self.initial_state)
             action = self.agent.action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
             for t in range(self.MAX_timestep):
+                if action.input_key != None and 'j' in action.input_key:
+                    print('Tried to jump.')
+
                 r, ns, next_pos = self.reward(state, action) # copy, not ref
                 scenario.append([r, state.no, action.action_id])
+
+                if t == self.MAX_timestep - 1:
+                    tle_cnt += 1
+                    print('Time over.')
+                    print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
+                    break
 
                 # calculate next situation
                 state = ns  # ok
@@ -229,13 +234,11 @@ class Environment:
                     stamina_consume = 2
                     acting_time = 1
                 elif state.id == 'goal' or state.id == 'death':
+                    if state.id == 'death':
+                        print('You died.')
                     break
                 
-                if t == self.MAX_timestep - 1:
-                    tle_cnt += 1
-                    print('Time over.')
-                    print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
-                    break
+                
 
                 self.agent.update_position(next_pos)
                 # return value of action_update is newly constructed.
@@ -254,7 +257,7 @@ class Environment:
                 complete += 1
                 print('complete {} / {}'.format(complete, n))
 
-            if tle_cnt >= n * n * n:
+            if complete == 0 and tle_cnt >= n * n:
                 print('Failed.\nIt needs to add Time-steps.')
                 break
         
@@ -262,7 +265,7 @@ class Environment:
     
     
     def reset(self, dataset_initialize=False):
-        self.agent = self.initial_agent
+        #self.agent = self.initial_agent
         if dataset_initialize == True:
             self.dataset = []
     
