@@ -1,5 +1,5 @@
 from action import Action
-import numpy as np
+from basic_math import *
 
 
 class Agent:
@@ -16,11 +16,11 @@ class Agent:
         return cls(start_x=agent.pos[0], start_y=agent.pos[1], start_z=agent.pos[2], HP=agent.HP, stamina=agent.stamina)
 
     def Update(self, agent):
-        self.pos = np.copy(agent.pos)
+        self.pos = agent.get_current_position()
         self.HP = agent.HP
         self.stamina = agent.stamina
         self.action.Update(agent.action)
-        self.dir = np.copy(agent.dir)
+        self.dir = agent.get_current_direction()
     
     def get_current_position(self):
         return np.copy(self.pos)
@@ -29,11 +29,13 @@ class Agent:
         return self.action
     
     def get_current_direction(self):
-        return np.copy(self.action.direction)
+        return np.copy(self.dir)
     
     def update_position(self, pos):
         self.pos = np.copy(pos)
         
     def update_action(self, action):
         self.action.Update(action)
-        self.dir = action.velocity / np.sqrt(np.dot(action.velocity, action.velocity))
+        
+    def update_direction(self, direction):
+        self.dir = norm(direction)

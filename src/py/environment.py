@@ -2,8 +2,7 @@ from state import State
 from action import Action
 from action import *
 from agent import Agent
-import numpy as np
-import math
+from basic_math import *
 
 stamina_area = [19, 39, 59, 79, 100]
 len_stamina_area = len(stamina_area)
@@ -13,16 +12,6 @@ state_maps = {'field':0, 'wall':len_stamina_area,
               'lowair':len_stamina_area*3, 
               'goal':len_stamina_area*4, 'death':len_stamina_area*4+1}
 
-def vector_size(vec):
-    return math.sqrt(np.dot(vec, vec))
-
-def norm(vec):
-    _size_ = vector_size(vec)
-    return vec / _size_ if _size_ != 0 else 0
-
-def EuclideanDistance(pos1, pos2):
-    pos3 = pos2 - pos1
-    return math.sqrt(np.dot(pos3, pos3))
 
 
 class Environment:
@@ -79,6 +68,9 @@ class Environment:
         return not (x < 0 or x >= len(self.map_info) or z < 0 or z >= len(self.map_info[0]))
 
     def isWall(self, x1, z1, x2, z2):
+        x1 = int(x1)
+        z1 = int(z1)
+        x2, z2 = int(x2), int(z2)
         tangent = (self.map_info[x1, z1] - self.map_info[x2, z2]) / EuclideanDistance(np.array([x1, 0, z1]), np.array([x2, 0, z2]))
         angle = np.arctan(abs(tangent))
 
@@ -90,37 +82,40 @@ class Environment:
     def cal_next_pos(self, state, action):
         next_pos = self.agent.get_current_position()
         next_state_id = state.id
-        if state.id == 'death' or state.id == 'goal' or action.action_id == 'Wait':
+        y_err = 0.5
+        if state.id == 'death' or state.id == 'goal':
             return next_pos, state.id
         elif state.id == 'air' and action.action_id != None and 'j' in action.action_id:
+            # 현재 air 상태인데 입력된 action에 점프 키가 있다
             next_state_id = 'parachute'
+            action.velocity[1] = -3
             # parachute mode on
             
         """
-            TODO : 현재 action에 모든 velocity 정보가 담겨 있다고 가정된 상태.
+            현재 action에 모든 velocity 정보가 담겨 있다고 가정된 상태.
             그러나 현재 state에 따라서 그 velocity도 당연히 달라져야 한다
             이를테면 air상태와 parachute의 상태는 달라지기 때문에 parachute 모드일 때 velocity 조정 필요
             또한, 이 method에 들어온 시점에서 field가 아닌 state일 때에 대한 물리 옵션 확인 필요
         """
         # 60 frame으로 나눠서 충돌 테스트
         t = action.acting_time / 60
+        t0 = t
         
-        prev_pos = self.agent.get_current_position()
-        v_xz = np.array([action.velocity[0], 0., action.velocity[2]])
-        v_y = np.array([0., action.velocity[1], 0.])
+        prev_pos = self.agent.get_current_position()                    # copy
+        v_xz = np.array([action.velocity[0], 0., action.velocity[2]])   # distribute by x,z
+        v_y = np.array([0., action.velocity[1], 0.])                    # distribute by y
 
-        y_err = 0.1
         while t <= action.acting_time:
-            if self.inBound(next_pos[0], next_pos[2]):
-                return next_pos, 'death'
-            next_pos = next_pos + v_xz*t
-            if next_state_id == 'air' or next_state_id == 'parachute':
-                next_pos += (v_y - self.g*t)*t
+            next_pos = next_pos + v_xz*t0
+            if next_state_id == 'air':
+                next_pos += (v_y - 0.5*self.g*t0)*t0
 
             x, y, z = next_pos[0], next_pos[1], next_pos[2]
+            if not self.inBound(x, z):
+                return next_pos, 'death'
 
             if next_state_id == 'air' or next_state_id == 'parachute':
-                if abs(y, self.map_info[x, z]) <= y_err:
+                if y - self.map_info[x, z] <= y_err:
                     next_pos[1] = self.map_info[x, z]
                     next_state_id = 'field'
                     if action.input_key != None and 'j' in action.input_key:
@@ -195,13 +190,15 @@ class Environment:
         self.agent = Agent.from_agent(self.initial_agent)
         state = State.from_state(self.initial_state)
         while complete < n:
+            # initialize
             scenario = []
             self.agent.Update(self.initial_agent)
             state.Update(self.initial_state)
             action = self.agent.action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
+
             for t in range(self.MAX_timestep):
-                if action.input_key != None and 'j' in action.input_key:
-                    print('Tried to jump.')
+                """if action.input_key != None and 'j' in action.input_key:
+                    print('Tried to jump.')"""
 
                 r, ns, next_pos = self.reward(state, action) # copy, not ref
                 scenario.append([r, state.no, action.action_id])
@@ -216,18 +213,24 @@ class Environment:
                 state = ns  # ok
                 if state.id == 'death' or state.id == 'goal':
                     break
+
+                # 다음 action을 randomly generate하고, 기초적인 parameter를 초기화한다.
                 next_key_input, next_action_id = self.get_random_action()
                 stamina_consume = base_stamina_consume # 회복수치, -4.8
                 acting_time = base_acting_time # 1.3sec
+                velocity = action.velocity
+
+                # 경우에 따라 parameter 값을 조정한다.
                 if state.id == 'air':
-                    stamina_consume = 0
+                    stamina_consume = 0         # no recover, no consume
                 elif state.id == 'field':
-                    if 's' in next_key_input:
+                    if 's' in next_key_input:   # sprint
                         stamina_consume = 20
                         acting_time = 1
                     if 'j' in next_key_input:
                         stamina_consume = 1 if stamina_consume == -4.8 else stamina_consume + 1
                 elif state.id == 'wall':
+                    self.agent.update_direction(action) # 방향 전환
                     if 'j' in next_key_input:
                         stamina_consume = 25
                 elif state.id == 'parachute':
@@ -237,13 +240,13 @@ class Environment:
                     if state.id == 'death':
                         print('You died.')
                     break
-                
+                # Note: 각 구체적인 값은 parameter table 참조
                 
 
                 self.agent.update_position(next_pos)
                 # return value of action_update is newly constructed.
                 # So, it is okay.
-                self.agent.dir = action.action_update(next_action_id, next_key_input, stamina_consume, acting_time, self.agent.dir)
+                action.action_update(next_action_id, next_key_input, velocity, stamina_consume, acting_time)
                 self.agent.action.Update(action)
             # steps ended.
 
