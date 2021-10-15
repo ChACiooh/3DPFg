@@ -58,7 +58,7 @@ class Environment:
         self.MAX_stamina = MAX_stamina
         self.unit_time = unit_time
         self.parachute_height = parachute_height
-        self.g = np.array([0., gravitial_acc, 0.])
+        self.g = np.array([0., -gravitial_acc, 0.])
         self.climb_angle = climb_angle
         self.gliding_down = np.array([0., gliding_down, 0.])
         self.dataset = []
@@ -85,7 +85,7 @@ class Environment:
         y_err = 0.5
         if state.id == 'death' or state.id == 'goal':
             return next_pos, state.id
-        elif state.id == 'air' and action.action_id != None and 'j' in action.action_id:
+        elif state.id == 'air' and 'j' in action.action_id:
             # 현재 air 상태인데 입력된 action에 점프 키가 있다
             next_state_id = 'parachute'
             action.velocity[1] = -3
@@ -99,35 +99,52 @@ class Environment:
         """
         # 60 frame으로 나눠서 충돌 테스트
         t = action.acting_time / 60
-        t0 = t
-        
+        st = action.stamina_consume / 60
+        stamina_flag = False
+        next_stamina = self.agent.stamina
         prev_pos = self.agent.get_current_position()                    # copy
         v_xz = np.array([action.velocity[0], 0., action.velocity[2]])   # distribute by x,z
         v_y = np.array([0., action.velocity[1], 0.])                    # distribute by y
 
-        while t <= action.acting_time:
-            next_pos = next_pos + v_xz*t0
-            if next_state_id == 'air':
-                next_pos += (v_y - 0.5*self.g*t0)*t0
+        if state.id == 'wall':
+            # agent의 기저 벡터 space의 y-z평면을 기반으로 하지 않고,
+            # 기존처럼 하되, 방향만 y-axis 방향으로 돌려둔 상태라고 가정.
+            # 벽을 따라서 y-z 평면을 이동하도록 계산한다.
+            # TODO : pipeline
+            pass
 
-            x, y, z = next_pos[0], next_pos[1], next_pos[2]
-            if not self.inBound(x, z):
-                return next_pos, 'death'
+        else:
+            for _ in range(60):
+                next_pos = next_pos + (v_xz + v_y)*t 
+                if next_state_id == 'air':
+                    next_pos += 0.5*self.g*t*t
 
-            if next_state_id == 'air' or next_state_id == 'parachute':
-                if y - self.map_info[x, z] <= y_err:
-                    next_pos[1] = self.map_info[x, z]
-                    next_state_id = 'field'
-                    if action.input_key != None and 'j' in action.input_key:
-                        # jump action end.
-                        break
-                    
-            if self.isWall(prev_pos[0], prev_pos[2], next_pos[0], next_pos[2]) == True:
-                next_state_id = 'wall'
-                break
-            prev_pos = np.copy(next_pos)
-            t += action.acting_time / 60
+                next_stamina -= st
+                if next_stamina <= 0:
+                    next_stamina = 0
+                    stamina_flag = True
 
+                
+                x, y, z = next_pos[0], next_pos[1], next_pos[2]
+                if not self.inBound(x, z):
+                    return next_pos, 'death'
+
+                if next_state_id == 'air' or next_state_id == 'parachute':
+                    if y - self.map_info[x, z] <= y_err:
+                        next_pos[1] = self.map_info[x, z]
+                        next_state_id = 'field'
+                        if 'j' in action.input_key:
+                            # jump action end.
+                            break
+                        
+                if self.isWall(prev_pos[0], prev_pos[2], next_pos[0], next_pos[2]) == True:
+                    next_state_id = 'wall'
+                    break
+
+                if stamina_flag == True:
+                    break
+                prev_pos = np.copy(next_pos)
+        self.agent.stamina = next_stamina
         return next_pos, next_state_id
     
     def state_transition(self, state, action):
@@ -218,7 +235,6 @@ class Environment:
                 next_key_input, next_action_id = self.get_random_action()
                 stamina_consume = base_stamina_consume # 회복수치, -4.8
                 acting_time = base_acting_time # 1.3sec
-                velocity = action.velocity
 
                 # 경우에 따라 parameter 값을 조정한다.
                 if state.id == 'air':
@@ -228,9 +244,11 @@ class Environment:
                         stamina_consume = 20
                         acting_time = 1
                     if 'j' in next_key_input:
-                        stamina_consume = 1 if stamina_consume == -4.8 else stamina_consume + 1
+                        stamina_consume = 1 if stamina_consume == base_stamina_consume else stamina_consume + 1
                 elif state.id == 'wall':
-                    self.agent.update_direction(action) # 방향 전환
+                    self.agent.update_direction(action.velocity)      # 방향 전환
+                    while 's' in next_key_input:                      # spinning
+                        next_key_input, next_action_id = self.get_random_action()
                     if 'j' in next_key_input:
                         stamina_consume = 25
                 elif state.id == 'parachute':
@@ -246,7 +264,7 @@ class Environment:
                 self.agent.update_position(next_pos)
                 # return value of action_update is newly constructed.
                 # So, it is okay.
-                action.action_update(next_action_id, next_key_input, velocity, stamina_consume, acting_time)
+                action.action_update(next_action_id, next_key_input, stamina_consume, acting_time, self.agent.dir)
                 self.agent.action.Update(action)
             # steps ended.
 

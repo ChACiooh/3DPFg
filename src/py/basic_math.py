@@ -5,6 +5,7 @@ def rotate_matrix(angle):
     R_matrix = np.array([[np.cos(angle), 0., np.sin(angle)],
                          [0., 1., 0.],
                          [-np.sin(angle), 0., np.cos(angle)]])
+
     return R_matrix
 
 def vector_size(vec):

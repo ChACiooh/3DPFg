@@ -9,7 +9,7 @@ class Agent:
         self.stamina = stamina
         #Action(action_id, veclocity, acting_time=1.3, stamina_consume=-4.8, input_key=None)
         self.action = Action(action_id='Wait', velocity=np.array([0.,0.,0.]))
-        self.dir = np.array([0., 0., 1.])
+        self.dir = np.array([0., 0., 1.])   # base direction. D 버튼을 눌렀을 때 cos = 1인 방향.
 
     @classmethod
     def from_agent(cls, agent) -> 'Agent':
@@ -38,4 +38,5 @@ class Agent:
         self.action.Update(action)
         
     def update_direction(self, direction):
-        self.dir = norm(direction)
+        direction[1] = 0    # make y-axis velocity feature be 0.
+        self.dir = norm(np.matmul(rotate_matrix(angle=-np.pi/2), direction))
