@@ -1,4 +1,3 @@
-from matplotlib.pyplot import xcorr
 from basic_math import *
 
 base_stamina_consume = -4.8
@@ -26,8 +25,7 @@ class Action:
         self.input_key = input_key
         self.velocity = np.copy(velocity) # numpy array vector
         self.stamina_consume = stamina_consume
-
-        
+       
     # agent_dir : unit vector which points the direction that agent is looking
     def action_update(self, action_id, input_key, stamina_consume, acting_time, agent_dir):
         self.action_id = action_id
@@ -48,7 +46,6 @@ class Action:
             self.velocity[0] *= 6/4
             self.velocity[2] *= 6/4
         
-
     def Update(self, action):
         self.acting_time = action.acting_time
         self.action_id = action.action_id
@@ -56,3 +53,6 @@ class Action:
         self.velocity = np.copy(action.velocity)
         self.stamina_consume = action.stamina_consume
         
+    def get_action_vector(self, emb_keys):
+        action = [self.acting_time, self.action_id, emb_keys[self.input_key], vector_size(self.velocity), self.stamina_consume]
+        return np.array(action)

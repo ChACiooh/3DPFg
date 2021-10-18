@@ -1,3 +1,5 @@
+import numpy as np
+
 class State:
     def __init__(self, remained_distance, state_id, state_no, spend_time=0):
         self.remained_distance = remained_distance
@@ -14,3 +16,7 @@ class State:
     @classmethod
     def from_state(cls, state) -> 'State':
         return cls(remained_distance=state.remained_distance, state_id=state.id, state_no=state.no, spend_time=state.spend_time)
+
+    def get_state_vector(self):
+        state = [self.remained_distance, self.id, self.no, self.spend_time]
+        return np.array(state)

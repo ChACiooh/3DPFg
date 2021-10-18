@@ -200,27 +200,32 @@ class Environment:
         key = int(np.random.randint(len(_keys_), size=1))
         return _keys_[key], self.action_ids[_keys_[key]]
     
+    def step(self, action):
+        state, next_pos = self.state_transition(self.state, action)
+        reward = self.reward(self.state, action)
+        done = (state.id == 'goal')
+        return state, reward, done, next_pos
+
     def make_scenarios(self, n=10):
         complete = 0
         tle_cnt = 0
-        # print('action_id["Wait"] =', self.action_ids['Wait'])
-        self.agent = Agent.from_agent(self.initial_agent)
-        state = State.from_state(self.initial_state)
         while complete < n:
             # initialize
             scenario = []
             self.agent.Update(self.initial_agent)
-            state.Update(self.initial_state)
+            #state.Update(self.initial_state)
+            self.state = self.reset()
             action = self.agent.action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
 
             for t in range(self.MAX_timestep):
                 """if action.input_key != None and 'j' in action.input_key:
                     print('Tried to jump.')"""
 
-                r, ns, next_pos = self.reward(state, action) # copy, not ref
-                scenario.append([r, state.no, action.action_id])
+                ns, r, done, next_pos = self.step(action)
+                #r, ns, next_pos = self.reward(state, action) # copy, not ref
+                scenario.append([r, state.get_state_vector(), action.action_id])    # TODO : it seems to be modified.
 
-                if t == self.MAX_timestep - 1:
+                if done == False and t == self.MAX_timestep - 1:
                     tle_cnt += 1
                     print('Time over.')
                     print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
@@ -285,10 +290,12 @@ class Environment:
         return self.dataset
     
     
-    def reset(self, dataset_initialize=False):
-        #self.agent = self.initial_agent
+    def reset(self, dataset_initialize=True):
+        # print('action_id["Wait"] =', self.action_ids['Wait'])
+        self.agent = Agent.from_agent(self.initial_agent)
         if dataset_initialize == True:
             self.dataset = []
+        return State.from_state(self.initial_state)
     
     
     
