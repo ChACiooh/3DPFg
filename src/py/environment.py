@@ -74,10 +74,7 @@ class Environment:
         tangent = (self.map_info[x1, z1] - self.map_info[x2, z2]) / EuclideanDistance(np.array([x1, 0, z1]), np.array([x2, 0, z2]))
         angle = np.arctan(abs(tangent))
 
-        if angle >= self.climb_angle * np.pi / 180:
-            return True
-
-        return False
+        return angle >= self.climb_angle * np.pi / 180
 
     def cal_next_pos(self, state, action):
         next_pos = self.agent.get_current_position()
@@ -209,32 +206,44 @@ class Environment:
     def make_scenarios(self, n=10):
         complete = 0
         tle_cnt = 0
+        scenario = []
         while complete < n:
             # initialize
-            scenario = []
+            scene = dict()
             self.agent.Update(self.initial_agent)
             #state.Update(self.initial_state)
-            self.state = self.reset()
+            self.reset()
             action = self.agent.action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
-
+            scene['observations'] = []
+            scene['actions'] = []
+            scene['rewards'] = []
             for t in range(self.MAX_timestep):
-                """if action.input_key != None and 'j' in action.input_key:
-                    print('Tried to jump.')"""
-
                 ns, r, done, next_pos = self.step(action)
-                #r, ns, next_pos = self.reward(state, action) # copy, not ref
-                scenario.append([r, state.get_state_vector(), action.action_id])    # TODO : it seems to be modified.
+                scene['observations'].append(self.state.get_state_vector())
+                scene['actions'].append(action.get_action_vector())
+                scene['rewards'].append(r)
 
-                if done == False and t == self.MAX_timestep - 1:
+                if done == True:
+                    if 'dones' not in scene:
+                        scene['dones'] = []
+                    scene['dones'].append(r)
+
+                elif t == self.MAX_timestep - 1:
                     tle_cnt += 1
                     print('Time over.')
                     print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
+                    if 'terminals' not in scene:
+                        scene['terminals'] = []
+                    scene['terminals'].append(1)
                     break
 
                 # calculate next situation
                 state = ns  # ok
                 if state.id == 'death' or state.id == 'goal':
+                    #scenario.append(scene)
                     break
+
+                #scenario.append(scene)
 
                 # 다음 action을 randomly generate하고, 기초적인 parameter를 초기화한다.
                 next_key_input, next_action_id = self.get_random_action()
@@ -265,7 +274,7 @@ class Environment:
                     break
                 # Note: 각 구체적인 값은 parameter table 참조
                 
-
+                self.state = state
                 self.agent.update_position(next_pos)
                 # return value of action_update is newly constructed.
                 # So, it is okay.
@@ -273,29 +282,35 @@ class Environment:
                 self.agent.action.Update(action)
             # steps ended.
 
+            for key in scene.keys():
+                scene[key] = np.array(scene[key])   # make {key:np.array(), ...}
+            scenario.append(scene)
             if state.id == 'goal':
-                r_t = 0
+                '''r_t = 0
                 len_scenario = len(scenario)
                 for t in range(1, len_scenario):
                     r_t += scenario[len_scenario - t][0]
-                    scenario[len_scenario - t][0] = r_t # calculate return to go
-                self.dataset.append(scenario)
+                    scenario[len_scenario - t][0] = r_t # calculate return to go'''
                 complete += 1
-                print('complete {} / {}'.format(complete, n))
+                print(f'complete - {complete} / {n}')
 
             if complete == 0 and tle_cnt >= n * n:
                 print('Failed.\nIt needs to add Time-steps.')
                 break
         
+        self.dataset.append(scenario)
+        return scenario
+    
+    def get_dataset(self):
         return self.dataset
     
-    
-    def reset(self, dataset_initialize=True):
+    def reset(self, dataset_initialize=False):
         # print('action_id["Wait"] =', self.action_ids['Wait'])
         self.agent = Agent.from_agent(self.initial_agent)
+        self.state = State.from_state(self.initial_state)
         if dataset_initialize == True:
             self.dataset = []
-        return State.from_state(self.initial_state)
+        return self.state.get_state_vector()
     
     
     
