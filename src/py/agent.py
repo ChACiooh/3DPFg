@@ -9,7 +9,7 @@ class Agent:
         self.stamina = stamina
         #Action(action_id, veclocity, acting_time=1.3, stamina_consume=-4.8, input_key=None)
         self.action = Action(action_id='Wait', velocity=np.array([0.,0.,0.]))
-        self.dir = np.array([0., 0., 1.])   # base direction. D 버튼을 눌렀을 때 cos = 1인 방향.
+        self.dir = np.array([0., 0., 1.])   # base direction. D 버튼을 눌렀을 때 cos = 1인 방향. 크기 = 1
 
     @classmethod
     def from_agent(cls, agent) -> 'Agent':

@@ -9,7 +9,7 @@ angles = {'D':0., 'W':np.pi/2, 'A':np.pi, 'S':-np.pi/2,
 
 def change_direction(direction, input_key):
     # direction is numpy array vector
-    if input_key == 'None':
+    if input_key == 'Wait':
         return direction
     key = ''
     for k in input_key:
@@ -19,7 +19,7 @@ def change_direction(direction, input_key):
     
 
 class Action:
-    def __init__(self, action_id, velocity, acting_time=base_acting_time, stamina_consume=base_stamina_consume, input_key='None'):
+    def __init__(self, action_id, velocity, acting_time=base_acting_time, stamina_consume=base_stamina_consume, input_key='Wait'):
         self.acting_time = acting_time
         self.action_id = action_id
         self.input_key = input_key
@@ -37,7 +37,6 @@ class Action:
             self.velocity = np.array([0., 0., 0.])
             self.acting_time = self.base_acting_time
             
-        
         self.velocity = 4 * change_direction(agent_dir, input_key)  
         if 'j' in input_key:
             self.velocity += np.array([0., 3.822, 0.])
@@ -54,5 +53,4 @@ class Action:
         self.stamina_consume = action.stamina_consume
         
     def get_action_vector(self, emb_keys):
-        action = [self.acting_time, self.action_id, emb_keys[self.input_key], vector_size(self.velocity), self.stamina_consume]
-        return np.array(action)
+        return np.array([self.acting_time, self.action_id, emb_keys[self.input_key], vector_size(self.velocity), self.stamina_consume])

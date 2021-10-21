@@ -13,7 +13,7 @@ def vector_size(vec):
 
 def norm(vec):
     _size_ = vector_size(vec)
-    return vec / _size_ if _size_ != 0 else 0
+    return vec / _size_ if _size_ != 0 else np.array([0., 0., 0.])
 
 def EuclideanDistance(pos1, pos2):
     pos3 = pos2 - pos1
