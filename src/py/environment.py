@@ -44,7 +44,7 @@ class Environment:
         #State(remained_distance, state_id, state_no, spend_time=0)
         self.initial_state = State(EuclideanDistance(self.initial_agent.get_current_position(), goal_position), state_id='field',
                                     state_no=len_stamina_area-1)
-        self.state = self.initial_state
+        self.state = State.from_state(self.initial_state)
         self.map_info = map_info
         self.goal_position = goal_position
         self.num_states = num_states
@@ -64,6 +64,9 @@ class Environment:
         self.dataset = []
         self.log = []
 
+    def isGoal(self, pos):
+        d = EuclideanDistance(self.goal_position, pos)
+        return d <= 0.5
 
     def inBound(self, x, z):
         return not (x < 0 or x >= len(self.map_info) or z < 0 or z >= len(self.map_info[0]))
@@ -86,12 +89,13 @@ class Environment:
         return 0 if fall_height <= 0 else fall_height * self.fall_damage
 
     def cal_next_pos(self, state, action):
+        print(f'{state.id}&{action.input_key}->')
         next_pos = self.agent.get_current_position()
         next_state_id = state.id
         y_err = 0.5
         if state.id == 'death' or state.id == 'goal':
             return next_pos, state.id
-        elif state.id == 'air' and 'j' in action.action_id:
+        elif state.id == 'air' and 'j' in action.id:
             # 현재 air 상태인데 입력된 action에 점프 키가 있다
             next_state_id = 'parachute'
             action.velocity[1] = -3
@@ -113,48 +117,46 @@ class Environment:
         v_y = np.array([0., action.velocity[1], 0.])                    # distribute by y
 
         if next_state_id == 'wall':
-            v_y /= 4    # 1 m/s, 기존은 4 m/s
             # agent의 기저 벡터 space의 y-z평면을 기반으로 하지 않고,
             # 기존처럼 하되, 방향만 y-axis 방향으로 돌려둔 상태라고 가정.
             # 옆으로는 움직일 수 없다고 가정.
             for _ in range(60):
                 next_pos = next_pos + v_y * t
-                next_stamina -= st
+                if st >= 0: # 벽에서는 회복 불가
+                    next_stamina -= st
 
                 if next_stamina <= 0:   # stamina가 다하고 미끄러짐/떨어짐
                     next_stamina = 0
                     stamina_flag = True
-                    prev_pos = np.copy(next_pos)
+                    #prev_pos = np.copy(next_pos)
                     prev_height = prev_pos[1]
+                    slide_t = t
                     while self.isWall(prev_pos[0], prev_pos[2], next_pos[0], next_pos[2]) == True:
-                        checking_t = 1/60
-                        prev_pos = np.copy(next_pos)
-                        # 뒤로 가기 파트
-                        while True:
-                            next_pos = prev_pos - self.agent.dir * checking_t
-                            if self.inBound(next_pos[0], next_pos[2]) == False:
-                                next_state_id = 'death'
-                                break
-                            if self.map_info[int(next_pos[0]), int(next_pos[2])] != self.map_info[int(prev_pos[0]), int(prev_pos[2])]:
-                                break
-                            checking_t += 1/60
+                        #prev_pos = np.copy(next_pos)
+                        while int(prev_pos[0]) == int(next_pos[0]) and int(prev_pos[2]) == int(next_pos[2]):
+                            next_pos -= 0.5 * self.g * slide_t * slide_t
+                            next_pos -= self.agent.dir / 60
+                            slide_t += t
+                            if slide_t > action.acting_time:
+                                slide_t = action.acting_time
+                        if self.inBound(next_pos[0], next_pos[2]) == False:
+                            next_state_id = 'death'
+                            break
+                        if self.map_info[int(next_pos[0]), int(next_pos[2])] >= self.map_info[int(prev_pos[0]), int(prev_pos[2])]:
+                            next_pos[1] = self.map_info[int(next_pos[0]), int(next_pos[2])]
+                            next_state_id = 'field'
+                            break
 
-                        # 낙하 파트
-                        while next_pos[1] > self.map_info[int(next_pos[0]), int(next_pos[2])]:
-                            next_pos += 0.5*self.g*(1/3600)
-                            if self.inBound(next_pos[0], next_pos[2]) == False:
-                                next_state_id = 'death'
-                                break
-                            if next_pos[1] <= 0:
-                                next_pos[1] = 0
-                                break
+                    if next_state_id == 'death':
+                        break
                     self.agent.HP -= self.calc_fall_damage(prev_height, next_pos[1])
                     if self.agent.HP <= 0:
+                        self.agent.HP = 0
+                        print('벽 타다가 낙사')
                         next_state_id = 'death'
-                    if next_state_id != 'death':
-                        next_state_id = 'field'
                     break
 
+                # 미끄러지지 않는 선에서 W / S
                 px, pz = prev_pos[0], prev_pos[2]
                 nx, nz = next_pos[0], next_pos[2]
 
@@ -183,10 +185,14 @@ class Environment:
                 if next_stamina <= 0:
                     next_stamina = 0
                     stamina_flag = True
+                elif next_stamina >= self.MAX_stamina:
+                    next_stamina = self.MAX_stamina
 
                 
                 x, y, z = next_pos[0], next_pos[1], next_pos[2]
                 if not self.inBound(x, z):
+                    print('out of map')
+                    print(f'coord:({x}, {y}, {z})')
                     return next_pos, 'death'
 
                 if next_state_id == 'air' or next_state_id == 'parachute':
@@ -203,7 +209,7 @@ class Environment:
 
                 if stamina_flag == True:
                     break
-                prev_pos = np.copy(next_pos)
+                #prev_pos = np.copy(next_pos)
         self.agent.stamina = next_stamina
         return next_pos, next_state_id
     
@@ -214,13 +220,14 @@ class Environment:
         next_pos, next_state_id = self.cal_next_pos(state, action)
         nx, ny, nz = next_pos[0], next_pos[1], next_pos[2]
         
+        
         # acting_time만큼 지날 동안 action.stamina_consume을 소모
-        stamina = self.agent.stamina - action.stamina_consume * (base_acting_time / action.acting_time)
-        stamina = int(stamina)
-        if stamina <= 0:
-            stamina = 0
-        elif stamina > self.MAX_stamina:
-            stamina = self.MAX_stamina
+        #stamina = self.agent.stamina - action.stamina_consume * (base_acting_time / action.acting_time)
+        #stamina = int(stamina)
+        if self.agent.stamina <= 0:
+            self.agent.stamina = 0
+        elif self.agent.stamina > self.MAX_stamina:
+            self.agent.stamina = self.MAX_stamina
 
         remained_distance = EuclideanDistance(next_pos, self.goal_position)
         
@@ -229,17 +236,20 @@ class Environment:
             next_state_id  = state.id
             self.agent.HP -= self.calc_fall_damage(y, ny)
             if self.agent.HP <= 0:
+                print('!!!!')
                 next_state_id = 'death'
         
         next_state_no = state.no
         if next_state_id != 'death' and next_state_id != 'goal':
             for i in range(len_stamina_area):
-                if stamina / self.MAX_stamina * 100.0 <= stamina_area[i]:
+                if self.agent.stamina / self.MAX_stamina * 100.0 <= stamina_area[i]:
                     next_state_no = state_maps[next_state_id] + i
                     break
                 
         #self.agent.action = action
         #self.agent.update_position(nx, ny, nz)
+        if self.isGoal(next_pos) == True:
+            next_state_id = 'goal'
         next_state = State(remained_distance, next_state_id, next_state_no, spend_time=state.spend_time+self.unit_time)
         
         return next_state, next_pos
@@ -251,10 +261,9 @@ class Environment:
         
         return -deltaDistance, next_state, next_pos
     
-    def get_random_action(self, seed):
-        np.random.seed(seed)
+    def get_random_action(self):
         _keys_ = list(self.action_ids.keys())
-        key = int(np.random.randint(len(_keys_), size=1))
+        key = np.random.randint(self.num_actions)
         return _keys_[key], self.action_ids[_keys_[key]]
     
     def step(self, action):
@@ -263,16 +272,26 @@ class Environment:
         return state, reward, done, next_pos
 
     def logging(self, state, action, timestep, reward):
-        self.log.append([state.id, action.input_key, timestep, reward])
+        pos = self.agent.pos
+        x, y, z = pos[0], pos[1], pos[2]
+        self.log.append([state.id, action.input_key, timestep, reward, (x, y, z)])
         return
 
-    def print_log(self, n=10):
-        cnt = 0
-        for l in self.log:
-            cnt += 1
-            print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
-            if cnt == n:
-                break
+    def print_log(self, n=20):
+        print('')
+        print('logs>')
+        len_log = len(self.log)
+        if len_log < 2*n:
+            for l in self.log:
+                print(f'coord:"{l[4]}"')
+                print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
+        elif len_log >= 2*n:
+            for l in self.log[:20]:
+                print(f'coord:"{l[4]}"')
+                print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
+            for l in self.log[len_log-20:]:
+                print(f'coord:"{l[4]}"')
+                print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
         return
 
     def make_scenarios(self, n=10):
@@ -280,15 +299,16 @@ class Environment:
         tle_cnt = 0
         scenario = []
         task_no = 1
+        print('initialized to make scenarios')
+        print(f'Max time step={self.MAX_timestep}')
         while complete < n:
             # initialize
-            if task_no == n:
-                break
+            print('')
+            print('='*20)
             print(task_no)
             task_no += 1
-            print('='*20)
             scene = dict()
-            self.agent.Update(self.initial_agent)
+            #self.agent.Update(self.initial_agent)
             #state.Update(self.initial_state)
             self.reset()
             action = self.agent.action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
@@ -296,7 +316,7 @@ class Environment:
             scene['actions'] = [action.get_action_vector(self.action_ids)]
             scene['rewards'] = []
             scene['timesteps'] = []
-            self.logging(self.state, action, 0, 0)
+            #self.logging(self.state, action, 0, 0)
             for t in range(self.MAX_timestep):
                 ns, r, done, next_pos = self.step(action)
                 scene['rewards'].append(r)
@@ -313,23 +333,30 @@ class Environment:
                     if 'terminals' not in scene:
                         scene['terminals'] = []
                     scene['terminals'].append(1)
+                    self.logging(state, action, timestep=t+1, reward=r)
                     break
 
                 # calculate next situation
                 state = ns  # ok
                 if state.id == 'death' or state.id == 'goal':
                     #scenario.append(scene)
+                    if state.id == 'death':
+                        tle_cnt += 1
+                    print(f'state.id={state.id}')
+                    self.logging(state, action, timestep=t+1, reward=r)
                     break
 
                 #scenario.append(scene)
 
                 # 다음 action을 randomly generate하고, 기초적인 parameter를 초기화한다.
                 # TODO : seed 값을 reward나 여러 다른 변수를 이용해 만들어보자.
-                next_key_input, next_action_id = self.get_random_action(seed=t)
+                next_key_input, next_action_id = self.get_random_action()
                 stamina_consume = base_stamina_consume # 회복수치, -4.8
                 acting_time = base_acting_time # 1.3sec
 
                 # 경우에 따라 parameter 값을 조정한다.
+                velocity = None
+                given = 'None'
                 if state.id == 'air':
                     stamina_consume = 0         # no recover, no consume
                 elif state.id == 'field':
@@ -339,51 +366,49 @@ class Environment:
                     if 'j' in next_key_input:
                         stamina_consume = 1 if stamina_consume == base_stamina_consume else stamina_consume + 1
                 elif state.id == 'wall':
-                    self.agent.update_direction(action.velocity)      # 방향 전환
-                    seed = t + 1
-                    while 's' in next_key_input or 'A' in next_key_input or 'D' in next_key_input:                      # spinning
-                        next_key_input, next_action_id = self.get_random_action(seed)
-                        seed += 1
+                    if self.state.id != 'wall':
+                        self.agent.update_direction(action.velocity)      # 방향 전환
+                    while ('s' in next_key_input) or ('A' in next_key_input) or ('D' in next_key_input) or ('Sj' in next_key_input):             # spinning
+                        # Only can be W, S, Wj
+                        next_key_input, next_action_id = self.get_random_action()
+                    given = 'asdf'
+                    if 'W' in next_key_input:
+                        velocity = np.array([0., 1., 0.])
+                    else:
+                        velocity = np.array([0., -1., 0.])
+                    
                     if 'j' in next_key_input:
                         stamina_consume = 25
+                        velocity *= 2
                 elif state.id == 'parachute':
                     stamina_consume = 2
                     acting_time = 1
-                elif state.id == 'goal' or state.id == 'death':
-                    tle_cnt += 1
-                    if state.id == 'death':
-                        print('You died.')
-                    break
                 # Note: 각 구체적인 값은 parameter table 참조
                 
-                self.state = state
+                self.logging(state, action, timestep=t+1, reward=r)
+                self.state.Update(state)
                 self.agent.update_position(next_pos)
                 # return value of action_update is newly constructed.
                 # So, it is okay.
-                action.action_update(next_action_id, next_key_input, stamina_consume, acting_time, self.agent.dir)
+                action.action_update(next_action_id, next_key_input, stamina_consume, acting_time, self.agent.dir, velocity=velocity, given=given)
                 self.agent.action.Update(action)
-                self.logging(state, action, timestep=t, reward=r)
 
                 scene['observations'].append(self.state.get_state_vector())
                 scene['actions'].append(action.get_action_vector(self.action_ids))
                 scene['rewards'].append(r)
             # steps ended.
-
             self.print_log()
+            
             for key in scene.keys():
                 if key != 'observations' and key != 'actions':
                     scene[key] = np.array(scene[key])   # make {key:np.array(), ...}
             scenario.append(scene)
             if state.id == 'goal':
-                '''r_t = 0
-                len_scenario = len(scenario)
-                for t in range(1, len_scenario):
-                    r_t += scenario[len_scenario - t][0]
-                    scenario[len_scenario - t][0] = r_t # calculate return to go'''
                 complete += 1
                 print(f'complete - {complete} / {n}')
+                #self.print_log()
 
-            if complete == 0 and tle_cnt >= n * n:
+            if complete == 0 and tle_cnt >= n:
                 print('Failed.\nIt needs to add Time-steps.')
                 break
         
@@ -395,8 +420,9 @@ class Environment:
     
     def reset(self, dataset_initialize=False):
         # print('action_id["Wait"] =', self.action_ids['Wait'])
-        self.agent = Agent.from_agent(self.initial_agent)
-        self.state = State.from_state(self.initial_state)
+        self.agent.Update(self.initial_agent)
+        self.state.Update(self.initial_state)
+        self.log = []
         if dataset_initialize == True:
             self.dataset = []
         return self.state.get_state_vector()

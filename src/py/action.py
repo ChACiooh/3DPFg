@@ -21,19 +21,23 @@ def change_direction(direction, input_key):
 class Action:
     def __init__(self, action_id, velocity, acting_time=base_acting_time, stamina_consume=base_stamina_consume, input_key='Wait'):
         self.acting_time = acting_time
-        self.action_id = action_id
+        self.id = action_id
         self.input_key = input_key
         self.velocity = np.copy(velocity) # numpy array vector
         self.stamina_consume = stamina_consume
        
     # agent_dir : unit vector which points the direction that agent is looking
-    def action_update(self, action_id, input_key, stamina_consume, acting_time, agent_dir):
-        self.action_id = action_id
+    def action_update(self, action_id, input_key, stamina_consume, acting_time, agent_dir, velocity, given='None'):
+        self.id = action_id
         self.input_key = input_key
         self.acting_time = acting_time
         self.stamina_consume = stamina_consume
         
-        if self.action_id == 'Wait':
+        if given != 'None':
+            self.velocity = np.copy(velocity)
+            return
+
+        if self.id == 'Wait':
             self.velocity = np.array([0., 0., 0.])
             self.acting_time = self.base_acting_time
             
@@ -47,10 +51,10 @@ class Action:
         
     def Update(self, action):
         self.acting_time = action.acting_time
-        self.action_id = action.action_id
+        self.id = action.id
         self.input_key = action.input_key
         self.velocity = np.copy(action.velocity)
         self.stamina_consume = action.stamina_consume
         
     def get_action_vector(self, emb_keys):
-        return np.array([self.acting_time, self.action_id, emb_keys[self.input_key], vector_size(self.velocity), self.stamina_consume])
+        return np.array([self.acting_time, self.id, emb_keys[self.input_key], vector_size(self.velocity), self.stamina_consume])
