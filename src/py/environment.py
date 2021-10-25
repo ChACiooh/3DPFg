@@ -8,9 +8,9 @@ stamina_area = [19, 39, 59, 79, 100]
 len_stamina_area = len(stamina_area)
 # starting point of state_ids
 state_maps = {'field':0, 'wall':len_stamina_area, 
-              'highair':len_stamina_area*2, 
-              'lowair':len_stamina_area*3, 
-              'goal':len_stamina_area*4, 'death':len_stamina_area*4+1}
+              'parachute':len_stamina_area*2, 
+              'air':len_stamina_area*3, 
+              'death':len_stamina_area*4, 'goal':len_stamina_area*4+1}
 
 
 
@@ -89,13 +89,14 @@ class Environment:
         return 0 if fall_height <= 0 else fall_height * self.fall_damage
 
     def cal_next_pos(self, state, action):
+        print(f'stamina={self.agent.stamina}')
         print(f'{state.id}&{action.input_key}->')
         next_pos = self.agent.get_current_position()
         next_state_id = state.id
         y_err = 0.5
         if state.id == 'death' or state.id == 'goal':
             return next_pos, state.id
-        elif state.id == 'air' and 'j' in action.id:
+        elif state.id == 'air' and 'j' in action.input_key:
             # 현재 air 상태인데 입력된 action에 점프 키가 있다
             next_state_id = 'parachute'
             action.velocity[1] = -3
@@ -120,9 +121,11 @@ class Environment:
             # agent의 기저 벡터 space의 y-z평면을 기반으로 하지 않고,
             # 기존처럼 하되, 방향만 y-axis 방향으로 돌려둔 상태라고 가정.
             # 옆으로는 움직일 수 없다고 가정.
+            print(f'action vector: {action.velocity}')
+            print(f'v_xz:{v_xz}, v_y:{v_y}')
             for _ in range(60):
                 next_pos = next_pos + v_y * t
-                if st >= 0: # 벽에서는 회복 불가
+                if next_stamina > 0 and st >= 0: # 벽에서는 회복 불가
                     next_stamina -= st
 
                 if next_stamina <= 0:   # stamina가 다하고 미끄러짐/떨어짐
@@ -140,6 +143,8 @@ class Environment:
                             if slide_t > action.acting_time:
                                 slide_t = action.acting_time
                         if self.inBound(next_pos[0], next_pos[2]) == False:
+                            print('conveted with death.')
+                            print(f'position:({next_pos[0]}, {next_pos[1]}, {next_pos[2]}')
                             next_state_id = 'death'
                             break
                         if self.map_info[int(next_pos[0]), int(next_pos[2])] >= self.map_info[int(prev_pos[0]), int(prev_pos[2])]:
@@ -167,6 +172,7 @@ class Environment:
                         next_pos -= self.agent.dir / 60
                     nx, nz = next_pos[0], next_pos[2]
                 if self.inBound(nx, nz) == False:
+                    print(f'out of bound: ({next_pos})')
                     next_state_id = 'death'
                     break
                 elif self.isWall(px, pz, nx, nz) == False:
@@ -187,7 +193,6 @@ class Environment:
                     stamina_flag = True
                 elif next_stamina >= self.MAX_stamina:
                     next_stamina = self.MAX_stamina
-
                 
                 x, y, z = next_pos[0], next_pos[1], next_pos[2]
                 if not self.inBound(x, z):
@@ -271,10 +276,11 @@ class Environment:
         done = (state.id == 'goal')
         return state, reward, done, next_pos
 
-    def logging(self, state, action, timestep, reward):
+    def logging(self, state, action, timestep, reward, next_pos):
         pos = self.agent.pos
         x, y, z = pos[0], pos[1], pos[2]
-        self.log.append([state.id, action.input_key, timestep, reward, (x, y, z)])
+        nx, ny, nz = next_pos[0], next_pos[1], next_pos[2]
+        self.log.append([state.id, action.input_key, timestep, reward, str((x, y, z))+'->'+str((nx, ny, nz))])
         return
 
     def print_log(self, n=20):
@@ -333,7 +339,7 @@ class Environment:
                     if 'terminals' not in scene:
                         scene['terminals'] = []
                     scene['terminals'].append(1)
-                    self.logging(state, action, timestep=t+1, reward=r)
+                    self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                     break
 
                 # calculate next situation
@@ -343,7 +349,7 @@ class Environment:
                     if state.id == 'death':
                         tle_cnt += 1
                     print(f'state.id={state.id}')
-                    self.logging(state, action, timestep=t+1, reward=r)
+                    self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                     break
 
                 #scenario.append(scene)
@@ -365,9 +371,10 @@ class Environment:
                         acting_time = 1
                     if 'j' in next_key_input:
                         stamina_consume = 1 if stamina_consume == base_stamina_consume else stamina_consume + 1
+                        state.id = 'air'
                 elif state.id == 'wall':
                     if self.state.id != 'wall':
-                        self.agent.update_direction(action.velocity)      # 방향 전환
+                        self.agent.update_direction(action.velocity)      # x-z 방향 전환
                     while ('s' in next_key_input) or ('A' in next_key_input) or ('D' in next_key_input) or ('Sj' in next_key_input):             # spinning
                         # Only can be W, S, Wj
                         next_key_input, next_action_id = self.get_random_action()
@@ -385,7 +392,7 @@ class Environment:
                     acting_time = 1
                 # Note: 각 구체적인 값은 parameter table 참조
                 
-                self.logging(state, action, timestep=t+1, reward=r)
+                self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                 self.state.Update(state)
                 self.agent.update_position(next_pos)
                 # return value of action_update is newly constructed.

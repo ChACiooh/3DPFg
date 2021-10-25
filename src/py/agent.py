@@ -3,7 +3,7 @@ from basic_math import *
 
 
 class Agent:
-    def __init__(self, start_x=2.0, start_y=0.0, start_z=2.0, HP=100, stamina=100):
+    def __init__(self, start_x=2.0, start_y=0.0, start_z=2.0, HP=100, stamina=200):
         self.pos = np.array([start_x, start_y, start_z])
         self.HP = HP
         self.stamina = stamina
