@@ -37,15 +37,14 @@ class Action:
             self.velocity = np.copy(velocity)
             return
 
-        if self.id == 'Wait':
+        if input_key == 'Wait' or input_key == 'j':
             self.velocity = np.array([0., 0., 0.])
-            self.acting_time = self.base_acting_time
-            
-        self.velocity = 4 * change_direction(agent_dir, input_key)
+        else:
+            self.velocity = 4 * change_direction(agent_dir, input_key)
         if given == 'parachute':
             self.velocity += np.array([0., -3., 0.])
             return
-        if 'j' in input_key:
+        elif 'j' in input_key:
             self.velocity += np.array([0., 3.822, 0.])
 
         if 's' in input_key:

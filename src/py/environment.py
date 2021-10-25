@@ -91,7 +91,7 @@ class Environment:
     def cal_next_pos(self, state, action):
         next_pos = self.agent.get_current_position()
         next_state_id = state.id
-        if state.id == 'death' or state.id == 'goal':
+        if state.id == 'death' or state.id == 'goal' or action.input_key == 'Wait':
             return next_pos, state.id
         elif state.id == 'air' and 'j' in action.input_key:
             # 현재 air 상태인데 입력된 action에 점프 키가 있다
@@ -160,7 +160,7 @@ class Environment:
             for _ in range(60):
                 next_pos = next_pos + (v_xz + v_y)*t 
                 if next_state_id == 'air':
-                    next_pos += 0.5*self.g*t*t
+                    v_y += self.g * t
                 x, y, z = next_pos[0], next_pos[1], next_pos[2]
                 if not self.inBound(x, z):
                     next_state_id = 'death'
