@@ -9,7 +9,7 @@ angles = {'D':0., 'W':np.pi/2, 'A':np.pi, 'S':-np.pi/2,
 
 def change_direction(direction, input_key):
     # direction is numpy array vector
-    if input_key == 'Wait':
+    if input_key == 'Wait' or input_key == 'j':
         return direction
     key = ''
     for k in input_key:
@@ -33,7 +33,7 @@ class Action:
         self.acting_time = acting_time
         self.stamina_consume = stamina_consume
         
-        if given != 'None':
+        if given == 'wall':
             self.velocity = np.copy(velocity)
             return
 
@@ -41,7 +41,10 @@ class Action:
             self.velocity = np.array([0., 0., 0.])
             self.acting_time = self.base_acting_time
             
-        self.velocity = 4 * change_direction(agent_dir, input_key)  
+        self.velocity = 4 * change_direction(agent_dir, input_key)
+        if given == 'parachute':
+            self.velocity += np.array([0., -3., 0.])
+            return
         if 'j' in input_key:
             self.velocity += np.array([0., 3.822, 0.])
 
