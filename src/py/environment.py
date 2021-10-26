@@ -3,6 +3,7 @@ from action import Action
 from action import *
 from agent import Agent
 from basic_math import *
+import pickle
 
 stamina_area = [19, 39, 59, 79, 100]
 len_stamina_area = len(stamina_area)
@@ -104,12 +105,6 @@ class Environment:
         elif state.id == 'field' and 'j' in action.input_key:
             next_state_id = 'air'
             
-        """
-            현재 action에 모든 velocity 정보가 담겨 있다고 가정된 상태.
-            그러나 현재 state에 따라서 그 velocity도 당연히 달라져야 한다
-            이를테면 air상태와 parachute의 상태는 달라지기 때문에 parachute 모드일 때 velocity 조정 필요
-            또한, 이 method에 들어온 시점에서 field가 아닌 state일 때에 대한 물리 옵션 확인 필요
-        """
         # 60 frame으로 나눠서 충돌 테스트
         t = action.acting_time / 60
         st = action.stamina_consume / 60
@@ -148,6 +143,8 @@ class Environment:
                     if int(next_xz[0]) != int(prev_xz[0]) or int(next_xz[2]) != int(prev_xz[2]):
                         break
                     next_xz += self.agent.dir * 0.05
+                    print(f'prev={prev_xz}')
+                    print(f'next={next_xz}')
 
                 y2 = self.map_info[int(next_xz[0]), int(next_xz[2])]
                 a = y2 - y_hat
@@ -323,7 +320,7 @@ class Environment:
                 if state.id == 'air':
                     stamina_consume = 0         # no recover, no consume
                     if next_pos[1] >= self.parachute_height:
-                        while next_key_input != 'j' or next_key_input != 'Wait':
+                        while next_key_input != 'j' and next_key_input != 'Wait':
                             next_key_input, next_action_id = self.get_random_action()
                     else:
                         next_key_input, next_action_id = 'Wait', self.action_ids['Wait']
@@ -337,7 +334,7 @@ class Environment:
                     stamina_consume = 10
                     if self.state.id != 'wall':
                         self.agent.update_direction(action.velocity)      # x-z 방향 전환
-                    while next_key_input != 'W' or next_key_input != 'S' or next_key_input != 'Wj':             # spinning
+                    while next_key_input != 'W' and next_key_input != 'S' and next_key_input != 'Wj':             # spinning
                         # Only can be W, S, and Wj
                         next_key_input, next_action_id = self.get_random_action()
                     given = 'wall'
@@ -379,9 +376,9 @@ class Environment:
                 print(f'complete - {complete} / {n}')
                 #self.print_log()
 
-            if complete == 0 and tle_cnt >= n:
+            """if complete == 0 and tle_cnt >= n:
                 print('Failed.\nIt needs to add Time-steps.')
-                break
+                break"""
         
         self.dataset.append(scenario)
         return scenario

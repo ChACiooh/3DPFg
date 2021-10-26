@@ -1,5 +1,9 @@
 import numpy as np
 
+def stateId2Val(id) -> int:
+    _ids = {'field':0, 'air':1, 'wall':2, 'parachute':3, 'goal':4, 'death':5}
+    return _ids[id]
+
 class State:
     def __init__(self, remained_distance, state_id, state_no, spend_time=0):
         self.remained_distance = remained_distance
@@ -18,5 +22,5 @@ class State:
         return cls(remained_distance=state.remained_distance, state_id=state.id, state_no=state.no, spend_time=state.spend_time)
 
     def get_state_vector(self):
-        state = [self.remained_distance, self.id, self.no, self.spend_time]
+        state = [self.remained_distance, stateId2Val(self.id), self.no, self.spend_time]
         return np.array(state)
