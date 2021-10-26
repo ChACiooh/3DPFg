@@ -1,9 +1,10 @@
+from numpy.random.mtrand import f
 from state import State
 from action import Action
 from action import *
 from agent import Agent
 from basic_math import *
-import pickle
+import time
 
 stamina_area = [19, 39, 59, 79, 100]
 len_stamina_area = len(stamina_area)
@@ -63,7 +64,7 @@ class Environment:
         self.climb_angle = climb_angle
         self.gliding_down = np.array([0., gliding_down, 0.])
         self.dataset = []
-        self.log = []
+        self.logs = []
 
     def isGoal(self, pos):
         d = EuclideanDistance(self.goal_position, pos)
@@ -210,17 +211,16 @@ class Environment:
         next_state = State(remained_distance, next_state_id, next_state_no, spend_time=state.spend_time+action.acting_time)
         return next_state, next_pos
     
-    
+    def get_random_action(self):
+        _keys_ = list(self.action_ids.keys())
+        key = np.random.randint(self.num_actions)
+        return _keys_[key], self.action_ids[_keys_[key]]
+
     def reward(self, state, action):
         next_state, next_pos = self.state_transition(state, action)
         deltaDistance = next_state.remained_distance - state.remained_distance
         
         return -deltaDistance, next_state, next_pos
-    
-    def get_random_action(self):
-        _keys_ = list(self.action_ids.keys())
-        key = np.random.randint(self.num_actions)
-        return _keys_[key], self.action_ids[_keys_[key]]
     
     def step(self, action):
         reward, state, next_pos = self.reward(self.state, action)
@@ -231,22 +231,37 @@ class Environment:
         pos = self.agent.pos
         x, y, z = pos[0], pos[1], pos[2]
         nx, ny, nz = next_pos[0], next_pos[1], next_pos[2]
-        self.log.append([state.id, action.input_key, timestep, reward, str((x, y, z))+'->'+str((nx, ny, nz))])
+        self.logs.append([state.id, action.input_key, timestep, reward, str((x, y, z))+'->'+str((nx, ny, nz))])
+        return
+
+    def save_log(self, task_no):
+        t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
+        task_no = str(task_no)
+        gx = int(self.goal_position[0])
+        gz = int(self.goal_position[2])
+        g_pos = f'x{gx}z{gz}'
+        filename = g_pos + '_' + t + '_' + str(task_no) + '.log'
+        with open(f'logs/{filename}', 'w') as f:
+            for log in self.logs:
+                log_msg = f'coord:{log[4]}\n'
+                log_msg += f'state:{log[0]}, action:{log[1]}, timestep:{log[2]}, reward:{log[3]}\n'
+                log_msg += '=' * 50 + '\n'
+                f.write(log_msg)
         return
 
     def print_log(self, n=20):
         print('')
         print('logs>')
-        len_log = len(self.log)
+        len_log = len(self.logs)
         if len_log < 2*n:
-            for l in self.log:
+            for l in self.logs:
                 print(f'coord:"{l[4]}"')
                 print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
         elif len_log >= 2*n:
-            for l in self.log[:20]:
+            for l in self.logs[:20]:
                 print(f'coord:"{l[4]}"')
                 print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
-            for l in self.log[len_log-20:]:
+            for l in self.logs[len_log-20:]:
                 print(f'coord:"{l[4]}"')
                 print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
         return
@@ -255,18 +270,17 @@ class Environment:
         complete = 0
         tle_cnt = 0
         scenario = []
-        task_no = 1
+        task_no = 0
         print('initialized to make scenarios')
         print(f'Max time step={self.MAX_timestep}')
         while complete < n:
             # initialize
-            print('')
-            print('='*20)
-            print(task_no)
             task_no += 1
+            # PRINT_DEBUG
+            #print('')
+            #print('='*20)
+            #print(task_no)
             scene = dict()
-            #self.agent.Update(self.initial_agent)
-            #state.Update(self.initial_state)
             self.reset()
             action = self.agent.action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
             scene['observations'] = [self.state.get_state_vector()]
@@ -276,13 +290,13 @@ class Environment:
             #self.logging(self.state, action, 0, 0)
             for t in range(self.MAX_timestep):
                 # PRINT_DEBUG
-                print(f'before: s_id={self.state.id}, pos={self.agent.pos}')
+                #print(f'before: s_id={self.state.id}, pos={self.agent.pos}')
                 ns, r, done, next_pos = self.step(action)
                 # PRINT_DEBUG
-                print(f'after : s_id={ns.id}, pos={next_pos}, action={action.input_key}')
-                print('='*50)
+                #print(f'after : s_id={ns.id}, pos={next_pos}, action={action.input_key}')
+                #print('='*50)
                 scene['rewards'].append(r)
-                scene['timesteps'].append(action.acting_time)
+                scene['timesteps'].append(ns.spend_time)
                 if done == True:
                     if 'dones' not in scene:
                         scene['dones'] = []
@@ -290,8 +304,8 @@ class Environment:
 
                 elif t == self.MAX_timestep - 1:
                     tle_cnt += 1
-                    print('Time over.')
-                    print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
+                    print(f'Time over. - {task_no}')
+                    #print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
                     if 'terminals' not in scene:
                         scene['terminals'] = []
                     scene['terminals'].append(1)
@@ -303,6 +317,7 @@ class Environment:
                 if state.id == 'death' or state.id == 'goal':
                     #scenario.append(scene)
                     if state.id == 'death':
+                        print(f'You Died. - {task_no}')
                         tle_cnt += 1
                     self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                     break
@@ -365,7 +380,7 @@ class Environment:
                 scene['actions'].append(action.get_action_vector(self.action_ids))
                 scene['rewards'].append(r)
             # steps ended.
-            self.print_log()
+            #self.print_log()
             
             for key in scene.keys():
                 if key != 'observations' and key != 'actions':
@@ -374,6 +389,7 @@ class Environment:
             if state.id == 'goal':
                 complete += 1
                 print(f'complete - {complete} / {n}')
+                self.save_log(task_no)
                 #self.print_log()
 
             """if complete == 0 and tle_cnt >= n:
@@ -390,7 +406,7 @@ class Environment:
         # print('action_id["Wait"] =', self.action_ids['Wait'])
         self.agent.Update(self.initial_agent)
         self.state.Update(self.initial_state)
-        self.log = []
+        self.logs = []
         if dataset_initialize == True:
             self.dataset = []
         return self.state.get_state_vector()
