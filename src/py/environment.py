@@ -4,6 +4,8 @@ from action import Action
 from action import *
 from agent import Agent
 from basic_math import *
+
+import pickle
 import time
 
 stamina_area = [19, 39, 59, 79, 100]
@@ -65,6 +67,14 @@ class Environment:
         self.gliding_down = np.array([0., gliding_down, 0.])
         self.dataset = []
         self.logs = []
+
+    def convert_agent(self, agent):
+        self.initial_agent = agent
+        self.agent = Agent.from_agent(agent)
+
+    def convert_map_info(self, map_info, goal_position):
+        self.map_info = map_info
+        self.goal_position = goal_position
 
     def isGoal(self, pos):
         d = EuclideanDistance(self.goal_position, pos)
@@ -385,7 +395,14 @@ class Environment:
             for key in scene.keys():
                 if key != 'observations' and key != 'actions':
                     scene[key] = np.array(scene[key])   # make {key:np.array(), ...}
-            scenario.append(scene)
+            
+            #scenario.append(scene)
+            # save scene at each file instead of memorizeing scenes in scenario array
+            time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
+            scene_filename = 'pkl/scenario/' + state.id + '_' + time_t + '.scn'
+            with open(scene_filename, 'wb') as f:
+                pickle.dump(scene, f)
+
             if state.id == 'goal':
                 complete += 1
                 print(f'complete - {complete} / {n}')
@@ -396,7 +413,7 @@ class Environment:
                 print('Failed.\nIt needs to add Time-steps.')
                 break"""
         
-        self.dataset.append(scenario)
+        self.dataset.append(scenario)   # 현재 무용지물
         return scenario
     
     def get_dataset(self):
