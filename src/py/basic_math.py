@@ -21,3 +21,11 @@ def EuclideanDistance(pos1, pos2):
 
 def convert_vector(dir_vec, siz_vec):
     return dir_vec * vector_size(siz_vec)
+
+def sigmoid(x):
+    return 1 / (1 + math.exp(-x))
+
+def softmax(p):
+    # given vector p into normalized with softmax
+    sum = np.sum([math.exp(i) for i in p])
+    return np.array([ math.exp(j) / sum for j in p ])

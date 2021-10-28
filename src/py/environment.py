@@ -36,7 +36,7 @@ class Environment:
                  state_ids, action_ids, 
                  fall_damage,
                  fall_min_height,
-                 MAX_timestep=500,
+                 MAX_timestep=1000,
                  MAX_stamina=200, 
                  unit_time=1.3, 
                  parachute_height=5,
@@ -55,6 +55,9 @@ class Environment:
         self.num_actions = num_actions
         self.state_ids = state_ids
         self.action_ids = action_ids
+        self._keys_ = list(self.action_ids.keys())
+        self.action_probs = softmax(np.ones(len(action_ids)))
+        self.action_probs_vWall = softmax(np.ones(3))
         #self.consume_stamina_info = consume_stamina_info
         self.fall_damage = fall_damage
         self.fall_min_height = fall_min_height
@@ -95,6 +98,10 @@ class Environment:
         angle = np.arctan(abs(tangent))
 
         return angle >= self.climb_angle * np.pi / 180
+
+    def canParachute(self, pos):
+        x, y, z = pos[0], pos[1], pos[2]
+        return y - self.map_info[int(x), int(z)] >= self.parachute_height
 
     def calc_fall_damage(self, y, ny):
         fall_height = y - ny - self.fall_min_height
@@ -222,9 +229,66 @@ class Environment:
         return next_state, next_pos
     
     def get_random_action(self):
-        _keys_ = list(self.action_ids.keys())
         key = np.random.randint(self.num_actions)
-        return _keys_[key], self.action_ids[_keys_[key]]
+        return self._keys_[key], self.action_ids[self._keys_[key]]
+
+    def update_softmax_prob(self, idx, kind='general'):
+        if kind == 'general':
+            self.action_probs[idx] *= 1.2
+            self.action_probs = softmax(self.action_probs)
+        else:
+            self.action_probs_vWall[idx] *= 1.2
+            self.action_probs_vWall = softmax(self.action_probs_vWall)
+
+    def get_softmax_action_vWall(self, before_key_input='W'):
+        _keys = ['W', 'S', 'Wj']
+        _idx = {'W':0, 'S':1, 'Wj':2}
+        r = np.random.random()
+        k = 0
+        for i in range(len(self.action_probs_vWall)):
+            key_input = _keys[i]
+            key_id = self.action_ids[key_input]
+            if self.action_probs_vWall[i] + k > r and r >= k:
+                self.update_softmax_prob(idx=_idx[key_input], kind='wall')
+                return key_input, key_id
+
+        self.update_softmax_prob(idx=_idx[before_key_input], kind='wall')
+        return before_key_input, self.action_ids[before_key_input]
+
+    def get_softmax_action(self, before_key_input, excepts=[], only=[]):
+        if len(only) > 0:
+            p = softmax(np.ones(len(only)))
+            r = np.random.random()
+            k = 0
+            for i in range(len(only)):
+                key_input = only[i]
+                key_id = self.action_ids[key_input]
+                if p[i] + k > r and r >= k:
+                    self.update_softmax_prob(idx=key_id)
+                    return key_input, key_id
+                k += p[i]
+
+            key_input = only[-1]
+            key_id = self.action_ids[key_input]
+            self.update_softmax_prob(idx=key_id)
+            return key_input, key_id
+
+        only = list(set(self._keys_) - set(excepts))
+        key_input, key_id = before_key_input, self.action_ids[before_key_input]
+        r = np.random.random()
+        k = 0
+        for i in range(len(only)):
+            key_input = only[i]
+            key_id = self.action_ids[key_input]
+            if self.action_probs[key_id] + k > r and r >= k:
+                self.update_softmax_prob(idx=key_id)
+                return key_input, key_id
+            k += self.action_probs[key_id]
+
+        key_input = only[-1]
+        key_id = self.action_ids[key_input]
+        self.update_softmax_prob(idx=key_id)
+        return key_input, key_id
 
     def reward(self, state, action):
         next_state, next_pos = self.state_transition(state, action)
@@ -276,7 +340,7 @@ class Environment:
                 print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
         return
 
-    def make_scenarios(self, n=10):
+    def make_scenarios(self, n=10, log_printing=False):
         complete = 0
         tle_cnt = 0
         scenario = []
@@ -288,9 +352,10 @@ class Environment:
             # initialize
             task_no += 1
             # PRINT_DEBUG
-            #print('')
-            #print('='*20)
-            #print(task_no)
+            if log_printing == True:
+                print('')
+                print('='*20)
+                print(task_no)
             scene = dict()
             self.reset()
             action = self.agent.action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
@@ -299,14 +364,20 @@ class Environment:
             scene['rewards'] = []
             scene['timesteps'] = []
             time_out = False
+            next_key_input, next_action_id = 'Wait', 0
             #self.logging(self.state, action, 0, 0)
             for t in range(self.MAX_timestep):
                 # PRINT_DEBUG
-                #print(f'before: s_id={self.state.id}, pos={self.agent.pos}')
+                if log_printing == True:
+                    print(f'before: s_id={self.state.id}, pos={self.agent.pos}')
+
+                # step                
                 ns, r, done, next_pos = self.step(action)
+
                 # PRINT_DEBUG
-                #print(f'after : s_id={ns.id}, pos={next_pos}, action={action.input_key}')
-                #print('='*50)
+                if log_printing == True:
+                    print(f'after : s_id={ns.id}, pos={next_pos}, action={action.input_key}')
+                    print('='*50)
                 scene['rewards'].append(r)
                 scene['timesteps'].append(ns.spend_time)
                 if done == True:
@@ -333,14 +404,15 @@ class Environment:
                     if state.id == 'death':
                         death_cnt += 1
                         print(f'You Died. - {task_no}')
-                        tle_cnt += 1
+                        scene['terminals'] = [1]
+                        scene['rewards'][-1] = r = -999999
                     self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                     break
 
                 #scenario.append(scene)
 
                 # 다음 action을 randomly generate하고, 기초적인 parameter를 초기화한다.
-                next_key_input, next_action_id = self.get_random_action()
+                next_key_input, next_action_id = self.get_softmax_action(before_key_input=next_key_input)
                 stamina_consume = base_stamina_consume # 회복수치, -4.8
                 acting_time = base_acting_time # 1.3sec
 
@@ -349,11 +421,11 @@ class Environment:
                 given = 'None'
                 if state.id == 'air':
                     stamina_consume = 0         # no recover, no consume
-                    if next_pos[1] >= self.parachute_height:
-                        while next_key_input != 'j' and next_key_input != 'Wait':
-                            next_key_input, next_action_id = self.get_random_action()
+                    if self.canParachute(next_pos) == True:
+                        next_key_input, next_action_id = self.get_softmax_action(before_key_input=next_key_input, only=['Wait', 'j'])
                     else:
                         next_key_input, next_action_id = 'Wait', self.action_ids['Wait']
+                        self.update_softmax_prob(idx=next_action_id)
                 elif state.id == 'field':
                     if 's' in next_key_input:   # sprint
                         stamina_consume = 20
@@ -364,9 +436,8 @@ class Environment:
                     stamina_consume = 10
                     if self.state.id != 'wall':
                         self.agent.update_direction(action.velocity)      # x-z 방향 전환
-                    while next_key_input != 'W' and next_key_input != 'S' and next_key_input != 'Wj':             # spinning
-                        # Only can be W, S, and Wj
-                        next_key_input, next_action_id = self.get_random_action()
+                    # Only can be W, S, and Wj
+                    next_key_input, next_action_id = self.get_softmax_action_vWall()
                     given = 'wall'
                     if 'W' in next_key_input:
                         velocity = np.array([0., 1., 0.])
@@ -376,8 +447,7 @@ class Environment:
                         stamina_consume = 25
                         velocity *= 2
                 elif state.id == 'parachute':
-                    while 's' in next_key_input:
-                        next_key_input, next_action_id = self.get_random_action()
+                    next_key_input, next_action_id = self.get_softmax_action(next_key_input, only=['W', 'A', 'S', 'D', 'WA', 'WD', 'SA', 'SD', 'j'])
                     stamina_consume = 2
                     given = 'parachute'
                     
@@ -395,7 +465,9 @@ class Environment:
                 scene['actions'].append(action.get_action_vector(self.action_ids))
                 scene['rewards'].append(r)
             # steps ended.
-            #self.print_log()
+            
+            if log_printing == True:
+                self.print_log()
             
             for key in scene.keys():
                 if key != 'observations' and key != 'actions':
@@ -413,7 +485,9 @@ class Environment:
                 complete += 1
                 print(f'complete - {complete} / {n}')
                 self.save_log(task_no)
-                #self.print_log()
+                
+                if log_printing == True:
+                    self.print_log()
 
             """if complete == 0 and tle_cnt >= n:
                 print('Failed.\nIt needs to add Time-steps.')
