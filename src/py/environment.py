@@ -12,8 +12,8 @@ stamina_area = [19, 39, 59, 79, 100]
 len_stamina_area = len(stamina_area)
 # starting point of state_ids
 state_maps = {'field':0, 'wall':len_stamina_area, 
-              'parachute':len_stamina_area*2, 
-              'air':len_stamina_area*3, 
+              'air':len_stamina_area*2, 
+              'parachute':len_stamina_area*3, 
               'death':len_stamina_area*4, 'goal':len_stamina_area*4+1}
 
 
@@ -179,7 +179,7 @@ class Environment:
                 elif next_stamina >= self.MAX_stamina:
                     next_stamina = self.MAX_stamina
 
-                if next_pos[1] < 0:
+                if y <= self.map_info[int(x), int(z)]:
                     next_pos[1] = 0
                     if next_state_id == 'air':
                         damage = self.calc_fall_damage(y=prev_pos[1], ny=0)
@@ -297,6 +297,7 @@ class Environment:
             scene['actions'] = [action.get_action_vector(self.action_ids)]
             scene['rewards'] = []
             scene['timesteps'] = []
+            time_out = False
             #self.logging(self.state, action, 0, 0)
             for t in range(self.MAX_timestep):
                 # PRINT_DEBUG
@@ -314,13 +315,15 @@ class Environment:
 
                 elif t == self.MAX_timestep - 1:
                     tle_cnt += 1
+                    time_out = True
                     print(f'Time over. - {task_no}')
                     #print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
-                    if 'terminals' not in scene:
+                    break
+                    """if 'terminals' not in scene:
                         scene['terminals'] = []
                     scene['terminals'].append(1)
                     self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
-                    break
+                    break"""
 
                 # calculate next situation
                 state = ns  # ok
@@ -398,10 +401,11 @@ class Environment:
             
             #scenario.append(scene)
             # save scene at each file instead of memorizeing scenes in scenario array
-            time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
-            scene_filename = 'pkl/scenario/' + state.id + '_' + time_t + '.scn'
-            with open(scene_filename, 'wb') as f:
-                pickle.dump(scene, f)
+            if not time_out:
+                time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
+                scene_filename = 'pkl/scenario/' + state.id + '_' + time_t + '.scn'
+                with open(scene_filename, 'wb') as f:
+                    pickle.dump(scene, f)
 
             if state.id == 'goal':
                 complete += 1
