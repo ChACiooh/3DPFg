@@ -281,6 +281,7 @@ class Environment:
         tle_cnt = 0
         scenario = []
         task_no = 0
+        death_cnt = 0
         print('initialized to make scenarios')
         print(f'Max time step={self.MAX_timestep}')
         while complete < n:
@@ -330,6 +331,7 @@ class Environment:
                 if state.id == 'death' or state.id == 'goal':
                     #scenario.append(scene)
                     if state.id == 'death':
+                        death_cnt += 1
                         print(f'You Died. - {task_no}')
                         tle_cnt += 1
                     self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
@@ -401,7 +403,7 @@ class Environment:
             
             #scenario.append(scene)
             # save scene at each file instead of memorizeing scenes in scenario array
-            if not time_out:
+            if not time_out and (state.id == 'goal' or death_cnt <= 95):
                 time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
                 scene_filename = 'pkl/scenario/' + state.id + '_' + time_t + '.scn'
                 with open(scene_filename, 'wb') as f:
