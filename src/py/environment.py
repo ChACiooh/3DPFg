@@ -4,9 +4,9 @@ from action import Action
 from action import *
 from agent import Agent
 from basic_math import *
+from logger import *
 
 import pickle
-import time
 
 stamina_area = [19, 39, 59, 79, 100]
 len_stamina_area = len(stamina_area)
@@ -24,6 +24,8 @@ class Environment:
     # goal_position : position object
     # num_states : number of states
     # num_actions : number of actions
+    # state_ids : {'state_kind':id}
+    # action_ids : {'key_input':id}
     # consume_stamina_info : stamina consume amount / fps with respect to action id(integer)
     # fall_damage : damage that reduces agents' HP when he fall.
     # fall_min_height : the height that can make damage
@@ -301,45 +303,6 @@ class Environment:
         done = (state.id == 'goal')
         return state, reward, done, next_pos
 
-    def logging(self, state, action, timestep, reward, next_pos):
-        pos = self.agent.pos
-        x, y, z = pos[0], pos[1], pos[2]
-        nx, ny, nz = next_pos[0], next_pos[1], next_pos[2]
-        self.logs.append([state.id, action.input_key, timestep, reward, str((x, y, z))+'->'+str((nx, ny, nz))])
-        return
-
-    def save_log(self, task_no):
-        t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
-        task_no = str(task_no)
-        gx = int(self.goal_position[0])
-        gz = int(self.goal_position[2])
-        g_pos = f'x{gx}z{gz}'
-        filename = g_pos + '_' + t + '_' + str(task_no) + '.log'
-        with open(f'logs/{filename}', 'w') as f:
-            for log in self.logs:
-                log_msg = f'coord:{log[4]}\n'
-                log_msg += f'state:{log[0]}, action:{log[1]}, timestep:{log[2]}, reward:{log[3]}\n'
-                log_msg += '=' * 50 + '\n'
-                f.write(log_msg)
-        return
-
-    def print_log(self, n=20):
-        print('')
-        print('logs>')
-        len_log = len(self.logs)
-        if len_log < 2*n:
-            for l in self.logs:
-                print(f'coord:"{l[4]}"')
-                print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
-        elif len_log >= 2*n:
-            for l in self.logs[:20]:
-                print(f'coord:"{l[4]}"')
-                print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
-            for l in self.logs[len_log-20:]:
-                print(f'coord:"{l[4]}"')
-                print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
-        return
-
     def make_scenarios(self, n=10, log_printing=False):
         complete = 0
         tle_cnt = 0
@@ -405,7 +368,7 @@ class Environment:
                         print(f'You Died. - {task_no}')
                         scene['terminals'] = [1]
                         scene['rewards'][-1] = r = -999999
-                    self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
+                    logging(self.logs, self.agent.pos, self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                     break
 
                 #scenario.append(scene)
@@ -462,11 +425,10 @@ class Environment:
 
                 scene['observations'].append(self.state.get_state_vector())
                 scene['actions'].append(action.get_action_vector(self.action_ids))
-                #scene['rewards'].append(r)
             # steps ended.
             
             if log_printing == True:
-                self.print_log()
+                print_log()
             
             for key in scene.keys():
                 if key != 'observations' and key != 'actions':
@@ -483,10 +445,10 @@ class Environment:
             if ns.id == 'goal':
                 complete += 1
                 print(f'complete - {complete} / {n}')
-                self.save_log(task_no)
+                save_log(task_no)
                 
                 if log_printing == True:
-                    self.print_log()
+                    print_log()
 
             """if complete == 0 and tle_cnt >= n:
                 print('Failed.\nIt needs to add Time-steps.')
@@ -500,7 +462,7 @@ class Environment:
     
     def reset(self, dataset_initialize=False):
         # print('action_id["Wait"] =', self.action_ids['Wait'])
-        self.action_probs = softmax(np.ones(len(action_ids)))
+        self.action_probs = softmax(np.ones(len(self.action_ids)))
         self.action_probs_vWall = softmax(np.ones(3))
         self.agent.Update(self.initial_agent)
         self.state.Update(self.initial_state)
