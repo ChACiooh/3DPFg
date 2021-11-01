@@ -390,18 +390,17 @@ class Environment:
                     time_out = True
                     print(f'Time over. - {task_no}')
                     #print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
-                    break
                     """if 'terminals' not in scene:
                         scene['terminals'] = []
                     scene['terminals'].append(1)
-                    self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
-                    break"""
+                    self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)"""
+                    break
 
                 # calculate next situation
                 state = ns  # ok
-                if state.id == 'death' or state.id == 'goal':
+                if ns.id == 'death' or ns.id == 'goal':
                     #scenario.append(scene)
-                    if state.id == 'death':
+                    if ns.id == 'death':
                         death_cnt += 1
                         print(f'You Died. - {task_no}')
                         scene['terminals'] = [1]
@@ -419,20 +418,20 @@ class Environment:
                 # 경우에 따라 parameter 값을 조정한다.
                 velocity = None
                 given = 'None'
-                if state.id == 'air':
+                if ns.id == 'air':
                     stamina_consume = 0         # no recover, no consume
                     if self.canParachute(next_pos) == True:
                         next_key_input, next_action_id = self.get_softmax_action(before_key_input=next_key_input, only=['Wait', 'j'])
                     else:
                         next_key_input, next_action_id = 'Wait', self.action_ids['Wait']
                         self.update_softmax_prob(idx=next_action_id)
-                elif state.id == 'field':
+                elif ns.id == 'field':
                     if 's' in next_key_input:   # sprint
                         stamina_consume = 20
                         acting_time = 1
                     if 'j' in next_key_input:
                         stamina_consume = 1 if stamina_consume == base_stamina_consume else stamina_consume + 1
-                elif state.id == 'wall':
+                elif ns.id == 'wall':
                     stamina_consume = 10
                     if self.state.id != 'wall':
                         self.agent.update_direction(action.velocity)      # x-z 방향 전환
@@ -453,8 +452,8 @@ class Environment:
                     
                 # Note: 각 구체적인 값은 parameter table 참조
                 
-                self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
-                self.state.Update(state)
+                self.logging(state, action, timestep=t+1, reward=r, next_pos=next_pos)
+                self.state.Update(ns)
                 self.agent.update_position(next_pos)
                 # return value of action_update is newly constructed.
                 # So, it is okay.
@@ -463,7 +462,7 @@ class Environment:
 
                 scene['observations'].append(self.state.get_state_vector())
                 scene['actions'].append(action.get_action_vector(self.action_ids))
-                scene['rewards'].append(r)
+                #scene['rewards'].append(r)
             # steps ended.
             
             if log_printing == True:
@@ -475,13 +474,13 @@ class Environment:
             
             #scenario.append(scene)
             # save scene at each file instead of memorizeing scenes in scenario array
-            if not time_out and (state.id == 'goal' or death_cnt <= 95):
+            if not time_out and (ns.id == 'goal' or death_cnt <= 95):
                 time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
-                scene_filename = 'pkl/scenario/' + state.id + '_' + time_t + '.scn'
+                scene_filename = 'pkl/scenario/' + ns.id + '_' + time_t + '.scn'
                 with open(scene_filename, 'wb') as f:
                     pickle.dump(scene, f)
 
-            if state.id == 'goal':
+            if ns.id == 'goal':
                 complete += 1
                 print(f'complete - {complete} / {n}')
                 self.save_log(task_no)
@@ -501,6 +500,8 @@ class Environment:
     
     def reset(self, dataset_initialize=False):
         # print('action_id["Wait"] =', self.action_ids['Wait'])
+        self.action_probs = softmax(np.ones(len(action_ids)))
+        self.action_probs_vWall = softmax(np.ones(3))
         self.agent.Update(self.initial_agent)
         self.state.Update(self.initial_state)
         self.logs = []
