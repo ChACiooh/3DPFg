@@ -76,16 +76,21 @@ class MapDesigner:
     def plot(self, n=1):
         plt_map_info(self.map_list[:n], self.X, self.Z)
         
-    def save(self):
-        for i in range(self.loaded, len(self.map_list)):
-            file_name = self.map_path + 'map_info_{}.pkl'.format(i+1)
-            with open(file_name, 'wb') as f:
-                pickle.dump(self.map_list[i], f)
-"""                
-    def save_json(self):
-        map_path = 'json/'
-        for i in range(0, len(self.map_list)):
-            file_name = map_path + 'map_info_{}.json'.format(i+1)
-            with open(file_name, 'w', encoding='utf-8') as f:
-                json.dump(self.map_list[i], f, indent=4)
-"""
+    def save(self, type='pickle'):
+        if type == 'pickle':
+            for i in range(self.loaded, len(self.map_list)):
+                file_name = self.map_path + f'map_info_{i+1}.pkl'
+                with open(file_name, 'wb') as f:
+                    pickle.dump(self.map_list[i], f)
+        elif type == 'json':
+            map_path = 'json/maps/'
+            for i in range(0, len(self.map_list)):
+                file_name = map_path + f'map_info_{i+1}.json'
+                with open(file_name, 'w', encoding='utf-8') as f:
+                    sub_map = []
+                    for row in self.map_list[i]:
+                        row = list(row)
+                        sub_map.append(row)
+                    json.dump(sub_map, f, ensure_ascii=False, indent='\t')
+        else:
+            print('Error: type parameter was wrong.')
