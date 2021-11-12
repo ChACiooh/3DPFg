@@ -7,6 +7,7 @@ from basic_math import *
 from logger import *
 
 import pickle
+import os
 
 stamina_area = [19, 39, 59, 79, 100]
 len_stamina_area = len(stamina_area)
@@ -444,7 +445,10 @@ class Environment:
             # save scene at each file instead of memorizeing scenes in scenario array
             if not time_out and (ns.id == 'goal' or death_cnt <= 95):
                 time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
-                scene_filename = f'pkl/scenario/env{self.id}_{ns.id}_{time_t}.scn'
+                path = f'pkl/scenario/{ns.id}/env_{self.id}/'
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                scene_filename = path + f'{time_t}.scn'
                 for scene_key in scene:
                     scene[scene_key] = np.array(scene[scene_key])
                 with open(scene_filename, 'wb') as f:
@@ -453,7 +457,7 @@ class Environment:
             if ns.id == 'goal':
                 complete += 1
                 print(f'complete - {complete} / {n}')
-                save_log(self.logs, self.goal_position, task_no)
+                save_log(self.logs, self.id, self.goal_position, task_no)
                 
                 if log_printing == True:
                     print_log()
