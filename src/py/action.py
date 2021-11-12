@@ -13,7 +13,7 @@ with open('json/action_ids.json', 'r') as f:
     
 action_input_keys = {}
 for item in action_ids.items():
-    action_ids[item[1]] = item[0]
+    action_input_keys[item[1]] = item[0]
 
 
 def change_direction(direction, input_key):
