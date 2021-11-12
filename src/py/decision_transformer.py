@@ -118,14 +118,14 @@ class DecisionTransformer(TrajectoryModel):
             attention_mask = torch.cat([torch.zeros(self.max_length-states.shape[1]), torch.ones(states.shape[1])])
             attention_mask = attention_mask.to(dtype=torch.long, device=states.device).reshape(1, -1)
             states = torch.cat(
-                [torch.zeros((states.shape[0], self.max_length-states.shape[1], self.state_dim), dtype=torch.float32, device=states.device), states],
+                [torch.zeros((states.shape[0], self.max_length-states.shape[1], self.state_dim), device=states.device), states],
                 dim=1).to(dtype=torch.float32)
             actions = torch.cat(
                 [torch.zeros((actions.shape[0], self.max_length - actions.shape[1], self.act_dim),
-                             dtype=torch.float32, device=actions.device), actions],
+                             device=actions.device), actions],
                 dim=1).to(dtype=torch.float32)
             returns_to_go = torch.cat(
-                [torch.zeros((returns_to_go.shape[0], self.max_length-returns_to_go.shape[1], 1), dtype=torch.float32, device=returns_to_go.device), returns_to_go],
+                [torch.zeros((returns_to_go.shape[0], self.max_length-returns_to_go.shape[1], 1), device=returns_to_go.device), returns_to_go],
                 dim=1).to(dtype=torch.float32)
             timesteps = torch.cat(
                 [torch.zeros((timesteps.shape[0], self.max_length-timesteps.shape[1]), device=timesteps.device), timesteps],

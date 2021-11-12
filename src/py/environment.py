@@ -298,7 +298,9 @@ class Environment:
         
         return -deltaDistance, next_state, next_pos
     
+    # action is ndarray vector
     def step(self, action):
+        action = cnv_vec2obj(action)
         reward, state, next_pos = self.reward(self.state, action)
         done = (state.id == 'goal')
         return state, reward, done, next_pos
@@ -323,7 +325,7 @@ class Environment:
             self.reset()
             action = self.agent.action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
             scene['observations'] = [self.state.get_state_vector()]
-            scene['actions'] = [action.get_action_vector(self.action_ids)]
+            scene['actions'] = [action.get_action_vector()]
             scene['rewards'] = []
             scene['timesteps'] = []
             time_out = False
@@ -335,8 +337,11 @@ class Environment:
                     print(f'before: s_id={self.state.id}, pos={self.agent.pos}')
 
                 # step                
+                action = action.get_action_vector()
                 ns, r, done, next_pos = self.step(action)
-
+                action = cnv_vec2obj(action)
+                #self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
+                
                 # PRINT_DEBUG
                 if log_printing == True:
                     print(f'after : s_id={ns.id}, pos={next_pos}, action={action.input_key}')
@@ -365,7 +370,7 @@ class Environment:
                     #scenario.append(scene)
                     if ns.id == 'death':
                         death_cnt += 1
-                        print(f'You Died. - {task_no}')
+                        #print(f'You Died. - {task_no}')
                         scene['terminals'] = [1]
                         scene['rewards'][-1] = r = -999999
                     logging(self.logs, self.agent.pos, self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
@@ -415,7 +420,7 @@ class Environment:
                     
                 # Note: 각 구체적인 값은 parameter table 참조
                 
-                self.logging(state, action, timestep=t+1, reward=r, next_pos=next_pos)
+                
                 self.state.Update(ns)
                 self.agent.update_position(next_pos)
                 # return value of action_update is newly constructed.
@@ -424,7 +429,7 @@ class Environment:
                 self.agent.action.Update(action)
 
                 scene['observations'].append(self.state.get_state_vector())
-                scene['actions'].append(action.get_action_vector(self.action_ids))
+                scene['actions'].append(action.get_action_vector())
             # steps ended.
             
             if log_printing == True:
@@ -456,7 +461,7 @@ class Environment:
                 print('Failed.\nIt needs to add Time-steps.')
                 break"""
         
-        self.dataset.append(scenario)   # 현재 무용지물
+        self.dataset.append(scenario)   # Probably unused
         return scenario
     
     def get_dataset(self):

@@ -29,3 +29,9 @@ def softmax(p):
     # given vector p into normalized with softmax
     sum = np.sum([math.exp(i) for i in p])
     return np.array([ math.exp(j) / sum for j in p ])
+
+def round(n, maximum=70) -> int:
+    for i in range(1, maximum):
+        if n-i >= -0.5 and n-i < 0.5:
+            return i
+    return 0

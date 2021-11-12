@@ -1,3 +1,4 @@
+from numpy import dtype
 from basic_math import *
 
 base_stamina_consume = -4.8
@@ -5,6 +6,14 @@ base_acting_time = 1.3
 angles = {'D':0., 'W':np.pi/2, 'A':np.pi, 'S':-np.pi/2,
          'WD':np.pi/4, 'WA':np.pi*3/4, 'SD':-np.pi/4, 'SA':-np.pi*3/4}
 
+import json
+
+with open('json/action_ids.json', 'r') as f:
+    action_ids = json.load(f)
+    
+action_input_keys = {}
+for item in action_ids.items():
+    action_ids[item[1]] = item[0]
 
 
 def change_direction(direction, input_key):
@@ -58,5 +67,17 @@ class Action:
         self.velocity = np.copy(action.velocity)
         self.stamina_consume = action.stamina_consume
         
-    def get_action_vector(self, emb_keys):
-        return np.array([self.acting_time, self.id, emb_keys[self.input_key], vector_size(self.velocity), self.stamina_consume])
+    def get_action_vector(self):
+        return np.array([self.id, self.acting_time, self.velocity[0], self.velocity[1], self.velocity[2], self.stamina_consume], dtype=np.float32)
+    
+
+
+def cnv_vec2obj(emb_vec):
+    id = round(emb_vec[0])
+    acting_time = emb_vec[1]
+    input_key = action_input_keys[id]
+    velocity = np.array([emb_vec[2], emb_vec[3], emb_vec[4]])
+    stamina_consume = emb_vec[5]
+    
+    #action_id, velocity, acting_time=base_acting_time, stamina_consume=base_stamina_consume, input_key='Wait'
+    return Action(action_id=id, velocity=velocity, acting_time=acting_time, stamina_consume=stamina_consume, input_key=input_key)
