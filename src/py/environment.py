@@ -33,7 +33,7 @@ class Environment:
     # MAX_stamina : maximum stamina value that agent can have
     # waiting_time : time until gain next action, unit_time=sec
     # parachute_height : minimum height that agent can unfold his parachute.
-    def __init__(self, agent, map_info, goal_position,
+    def __init__(self, id, agent, map_info, goal_position,
                  num_states, num_actions, 
                  state_ids, action_ids, 
                  fall_damage,
@@ -45,6 +45,7 @@ class Environment:
                  gravitial_acc=9.8,
                  climb_angle=60,
                  gliding_down=10.0):
+        self.id = id
         self.initial_agent = agent
         self.agent = Agent.from_agent(agent)
         #State(remained_distance, state_id, state_no, spend_time=0)
@@ -443,7 +444,7 @@ class Environment:
             # save scene at each file instead of memorizeing scenes in scenario array
             if not time_out and (ns.id == 'goal' or death_cnt <= 95):
                 time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
-                scene_filename = 'pkl/scenario/' + ns.id + '_' + time_t + '.scn'
+                scene_filename = 'pkl/scenario/env' + self.id + '_' + ns.id + '_' + time_t + '.scn'
                 for scene_key in scene:
                     scene[scene_key] = np.array(scene[scene_key])
                 with open(scene_filename, 'wb') as f:
@@ -452,7 +453,7 @@ class Environment:
             if ns.id == 'goal':
                 complete += 1
                 print(f'complete - {complete} / {n}')
-                save_log(task_no)
+                save_log(self.logs, self.goal_position, task_no)
                 
                 if log_printing == True:
                     print_log()
