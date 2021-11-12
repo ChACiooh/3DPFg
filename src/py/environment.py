@@ -444,7 +444,7 @@ class Environment:
             # save scene at each file instead of memorizeing scenes in scenario array
             if not time_out and (ns.id == 'goal' or death_cnt <= 95):
                 time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
-                scene_filename = 'pkl/scenario/env' + self.id + '_' + ns.id + '_' + time_t + '.scn'
+                scene_filename = f'pkl/scenario/env{self.id}_{ns.id}_{time_t}.scn'
                 for scene_key in scene:
                     scene[scene_key] = np.array(scene[scene_key])
                 with open(scene_filename, 'wb') as f:

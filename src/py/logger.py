@@ -12,7 +12,7 @@ def save_log(logger, id, goal_position, task_no):
     gx = int(goal_position[0])
     gz = int(goal_position[2])
     g_pos = f'x{gx}z{gz}'
-    filename = 'env' + id + '_' + g_pos + '_' + t + '_' + str(task_no) + '.log'
+    filename = f'env{id}_{g_pos}_{t}_{task_no}.log'
     with open(f'logs/{filename}', 'w') as f:
         for log in logger:
             log_msg = f'coord:{log[4]}\n'
