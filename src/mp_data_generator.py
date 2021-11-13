@@ -33,7 +33,7 @@ for state in state_ids.keys():
 num_actions = len(action_ids)
 
 print(num_states, num_actions)
-print(action_ids)
+#print(action_ids)
 
 from environment import *
 envs = []
@@ -50,6 +50,7 @@ for my_env in envs:
 #trajectories = my_env.make_scenarios(n=10)
 def ms(env, n=5):
     env.make_scenarios(n=n)
+    return
 
 n_s = []
 for _ in range(len(envs)):

@@ -328,6 +328,7 @@ class Environment:
             return list(set(self.action_ids)- set([key for key in self.action_ids if 's' in key]))
         return ['Wait']
         
+    
 
     def make_scenarios(self, n=10, log_printing=False):
         complete = 0
@@ -373,6 +374,7 @@ class Environment:
                 scene[K].pop()  # 마지막 step을 roll-back
             with open(scene_filename, 'wb') as f:
                 pickle.dump(save_scene, f)
+            return
         
         def stepDFS(timestep, state:State, action:Action):
             # 시작부터 goal인 건 이 함수를 호출하기 전에 걸러내기
@@ -408,6 +410,7 @@ class Environment:
                     scene['dones'] = Stack()
                 scene['dones'].push(r)
                 _save_scene_(scene)
+                print(f'env{self.id} found out one path!')
                 return 1
             elif ns.id == 'death':
                 # save point

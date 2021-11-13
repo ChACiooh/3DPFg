@@ -106,10 +106,6 @@ def get_next_action(state_id, key_input, next_action_id, prev_velocity):
     elif state_id == 'parachute':
         stamina_consume = 25
         velocity *= 2
-    """
-    elif state_id == 'wall':
-        agent.update_direction()
-        이건 caller쪽에서 구현
-    """   
+
     # given is same with state_id
     return Action(next_action_id, velocity, acting_time, stamina_consume, key_input)
