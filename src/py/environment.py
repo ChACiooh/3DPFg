@@ -332,7 +332,6 @@ class Environment:
             scene['timesteps'] = []
             time_out = False
             next_key_input, next_action_id = 'Wait', 0
-            #self.logging(self.state, action, 0, 0)
             for t in range(self.MAX_timestep):
                 # PRINT_DEBUG
                 if log_printing == True:
@@ -342,7 +341,7 @@ class Environment:
                 action = action.get_action_vector()
                 ns, r, done, next_pos = self.step(action)
                 action = cnv_vec2obj(action)
-                #self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
+                logging(self.logs, self.agent.pos, self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                 
                 # PRINT_DEBUG
                 if log_printing == True:
@@ -362,8 +361,7 @@ class Environment:
                     #print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
                     """if 'terminals' not in scene:
                         scene['terminals'] = []
-                    scene['terminals'].append(1)
-                    self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)"""
+                    scene['terminals'].append(1)"""
                     break
 
                 # calculate next situation
@@ -375,7 +373,6 @@ class Environment:
                         #print(f'You Died. - {task_no}')
                         scene['terminals'] = [1]
                         scene['rewards'][-1] = r = -999999
-                    logging(self.logs, self.agent.pos, self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                     break
 
                 #scenario.append(scene)

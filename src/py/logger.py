@@ -23,7 +23,7 @@ def save_log(logger, id, goal_position, task_no):
         for log in logger:
             log_msg = f'coord:{log[4]}\n'
             log_msg += f'state:{log[0]}, action:{log[1]}, timestep:{log[2]}, reward:{log[3]}\n'
-            log_msg += '=' * 50 + '\n'
+            log_msg += '=' * 50 + '\n\n'
             f.write(log_msg)
     return
 
