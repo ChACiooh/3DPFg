@@ -74,10 +74,7 @@ class Environment:
         self.climb_angle = climb_angle
         self.gliding_down = np.array([0., gliding_down, 0.])
         self.dataset = []
-        self.logs = []
-        
-        self.state_stack = Stack()
-        self.action_stack = Stack()
+        self.logs = Stack()
 
     def convert_agent(self, agent):
         self.initial_agent = agent
@@ -120,15 +117,15 @@ class Environment:
         next_pos = agent.get_current_position()
         next_state_id = state.id
         if state.id == 'death' or state.id == 'goal' or action.input_key == 'Wait':
-            return next_pos, state.id
+            return next_pos, state.id, agent
         elif state.id == 'air' and 'j' in action.input_key:
             # 현재 air 상태인데 입력된 action에 점프 키가 있다
             next_state_id = 'parachute'
-            return next_pos, next_state_id
+            return next_pos, next_state_id, agent
             # parachute mode on
         elif state.id == 'parachute' and 'j' in action.input_key:
             next_state_id = 'air'
-            return next_pos, next_state_id
+            return next_pos, next_state_id, agent
         elif state.id == 'field' and 'j' in action.input_key:
             next_state_id = 'air'
             
@@ -152,7 +149,7 @@ class Environment:
                 if next_stamina < 1:   # stamina가 다하고 미끄러짐/떨어짐
                     next_stamina = 0
                     next_state_id = 'death'
-                    return next_pos, next_state_id
+                    return next_pos, next_state_id, agent
                 
             next_xz = np.copy(next_pos)
             next_xz[1] = 0
@@ -216,11 +213,13 @@ class Environment:
 
                 #prev_pos = np.copy(next_pos)
         agent.stamina = next_stamina
+        agent.pos = np.copy(next_pos)
         return next_pos, next_state_id, agent
     
     def state_transition(self, state, action):
         if state.id == 'death' or state.id == 'goal':
-            return state, self.agent.get_current_pos()
+            return state, self.agent.get_current_pos(), Agent.from_agent(self.agent)
+        
         next_pos, next_state_id, agent = self.cal_next_pos(state, action)
 
         remained_distance = EuclideanDistance(next_pos, self.goal_position)
@@ -311,9 +310,6 @@ class Environment:
         done = (state.id == 'goal')
         return state, reward, done, next_pos, agent
     
-    def backstep(self):
-        self.state = self.state_stack.top()
-        self.state_stack.pop()
 
     def get_valid_action_list(self, state_id, stamina):
         if state_id == 'field':
@@ -334,19 +330,19 @@ class Environment:
         complete = 0
         #tle_cnt = 0
         #scenario = []
-        task_no = 0
+        task_no = 1
         #death_cnt = 0
         print(f'{self.id} - initialized to make scenarios')
         print(f'Max time step={self.MAX_timestep}')
         # while complete < n:
-        # initialize
-        task_no += 1
+        
         # PRINT_DEBUG
         if log_printing == True:
             print('')
             print('='*20)
             print(task_no)
-        
+            
+        # initialize
         scene = dict()
         self.reset()
         # state: 현재 보는 local object 대상
@@ -369,7 +365,7 @@ class Environment:
                 os.makedirs(path)
             scene_filename = path + f'{time_t}.scn'
             save_scene = {}
-            for K, V in scene.items:
+            for K, V in scene.items():
                 save_scene[K] = np.array(V.getTotal())
                 scene[K].pop()  # 마지막 step을 roll-back
             with open(scene_filename, 'wb') as f:
@@ -404,6 +400,8 @@ class Environment:
             scene['rewards'].push(r)
             scene['timesteps'].push(timestep)
             
+            logging(self.logs, self.agent.pos, state, action, timestep, r, npos)
+            
             if d == True:   # same with goal
                 # savepoint
                 if 'dones' not in scene:
@@ -411,6 +409,8 @@ class Environment:
                 scene['dones'].push(r)
                 _save_scene_(scene)
                 print(f'env{self.id} found out one path!')
+                save_log(logger=self.logs, id=self.id, goal_position=self.goal_position)
+                delogging(self.logs)
                 return 1
             elif ns.id == 'death':
                 # save point
@@ -440,7 +440,7 @@ class Environment:
                 self.agent.Update(agent)
                 self.state.Update(state)
             
-            for K in scene.keys:
+            for K in scene.keys():
                 scene[K].pop()
             return count    
         
@@ -576,7 +576,9 @@ class Environment:
             """
         # self.dataset.append(scenario)   # Probably unused
         print(f'env{self.id} succeeded with {complete}.')
-        
+        self.logs.clear()
+        for K in scene.keys():
+            scene[K].clear()
         return complete
     # function make_scenario end.
     

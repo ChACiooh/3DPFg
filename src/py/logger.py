@@ -4,12 +4,15 @@ import os
 def logging(logger, pos, state, action, timestep, reward, next_pos):
     x, y, z = pos[0], pos[1], pos[2]
     nx, ny, nz = next_pos[0], next_pos[1], next_pos[2]
-    logger.append([state.id, state.no, action.input_key, timestep, reward, str((x, y, z))+'->'+str((nx, ny, nz))])
+    logger.push([state.id, state.no, action.input_key, timestep, reward, str((x, y, z))+'->'+str((nx, ny, nz))])
     return
 
-def save_log(logger, id, goal_position, task_no):
+def delogging(logger):
+    logger.pop()
+    return
+
+def save_log(logger, id, goal_position):
     t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
-    task_no = str(task_no)
     gx = int(goal_position[0])
     gz = int(goal_position[2])
     g_pos = f'x{gx}z{gz}'
@@ -18,9 +21,9 @@ def save_log(logger, id, goal_position, task_no):
     if not os.path.exists(path):
         os.makedirs(path)
 
-    filename = path + f'{t}_{task_no}.log'
+    filename = path + f'{t}.log'
     with open(f'{filename}', 'w') as f:
-        for log in logger:
+        for log in logger.getTotal():
             log_msg = f'coord:{log[4]}\n'
             log_msg += f'state:{log[0]}, action:{log[1]}, timestep:{log[2]}, reward:{log[3]}\n'
             log_msg += '=' * 50 + '\n\n'

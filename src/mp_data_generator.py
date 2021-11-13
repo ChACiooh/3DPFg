@@ -41,15 +41,15 @@ print('goal positions')
 for i in range(12):
     with open(f'pkl/data/my_env{i+1}.pkl', 'rb') as f:
         my_env = pickle.load(f)
+        print(my_env.goal_position)
         envs.append(my_env)
-    print(envs[i].goal_position)
 
 for my_env in envs:
     my_env.reset(dataset_initialize=True)
 
 #trajectories = my_env.make_scenarios(n=10)
 def ms(env, n=5):
-    env.make_scenarios(n=n)
+    env.make_scenarios(n)
     return
 
 n_s = []
