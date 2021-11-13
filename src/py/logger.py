@@ -1,4 +1,5 @@
 import time
+import os
 
 def logging(logger, pos, state, action, timestep, reward, next_pos):
     x, y, z = pos[0], pos[1], pos[2]
@@ -12,12 +13,17 @@ def save_log(logger, id, goal_position, task_no):
     gx = int(goal_position[0])
     gz = int(goal_position[2])
     g_pos = f'x{gx}z{gz}'
-    filename = f'env{id}_{g_pos}_{t}_{task_no}.log'
-    with open(f'logs/{filename}', 'w') as f:
+    path = f'logs/env{id}_{g_pos}/'
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    filename = path + f'{t}_{task_no}.log'
+    with open(f'{filename}', 'w') as f:
         for log in logger:
             log_msg = f'coord:{log[4]}\n'
             log_msg += f'state:{log[0]}, action:{log[1]}, timestep:{log[2]}, reward:{log[3]}\n'
-            log_msg += '=' * 50 + '\n'
+            log_msg += '=' * 50 + '\n\n'
             f.write(log_msg)
     return
 

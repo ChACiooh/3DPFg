@@ -7,6 +7,7 @@ from basic_math import *
 from logger import *
 
 import pickle
+import os
 
 stamina_area = [19, 39, 59, 79, 100]
 len_stamina_area = len(stamina_area)
@@ -331,7 +332,6 @@ class Environment:
             scene['timesteps'] = []
             time_out = False
             next_key_input, next_action_id = 'Wait', 0
-            #self.logging(self.state, action, 0, 0)
             for t in range(self.MAX_timestep):
                 # PRINT_DEBUG
                 if log_printing == True:
@@ -341,7 +341,7 @@ class Environment:
                 action = action.get_action_vector()
                 ns, r, done, next_pos = self.step(action)
                 action = cnv_vec2obj(action)
-                #self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
+                logging(self.logs, self.agent.pos, self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                 
                 # PRINT_DEBUG
                 if log_printing == True:
@@ -361,8 +361,7 @@ class Environment:
                     #print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
                     """if 'terminals' not in scene:
                         scene['terminals'] = []
-                    scene['terminals'].append(1)
-                    self.logging(self.state, action, timestep=t+1, reward=r, next_pos=next_pos)"""
+                    scene['terminals'].append(1)"""
                     break
 
                 # calculate next situation
@@ -374,7 +373,6 @@ class Environment:
                         #print(f'You Died. - {task_no}')
                         scene['terminals'] = [1]
                         scene['rewards'][-1] = r = -999999
-                    logging(self.logs, self.agent.pos, self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                     break
 
                 #scenario.append(scene)
@@ -444,7 +442,10 @@ class Environment:
             # save scene at each file instead of memorizeing scenes in scenario array
             if not time_out and (ns.id == 'goal' or death_cnt <= 95):
                 time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
-                scene_filename = f'pkl/scenario/env{self.id}_{ns.id}_{time_t}.scn'
+                path = f'pkl/scenario/{ns.id}/env_{self.id}/'
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                scene_filename = path + f'{time_t}.scn'
                 for scene_key in scene:
                     scene[scene_key] = np.array(scene[scene_key])
                 with open(scene_filename, 'wb') as f:
@@ -453,7 +454,7 @@ class Environment:
             if ns.id == 'goal':
                 complete += 1
                 print(f'complete - {complete} / {n}')
-                save_log(self.logs, self.goal_position, task_no)
+                save_log(self.logs, self.id, self.goal_position, task_no)
                 
                 if log_printing == True:
                     print_log()
