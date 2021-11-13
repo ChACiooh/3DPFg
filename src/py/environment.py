@@ -40,7 +40,7 @@ class Environment:
                  state_ids, action_ids, 
                  fall_damage,
                  fall_min_height,
-                 MAX_timestep=1000,
+                 MAX_timestep=500,
                  MAX_stamina=200, 
                  unit_time=1.3, 
                  parachute_height=5,
@@ -74,6 +74,8 @@ class Environment:
         self.climb_angle = climb_angle
         self.gliding_down = np.array([0., gliding_down, 0.])
         self.dataset = []
+        self.death_cnt = 0
+        self.goal_cnt = 0
         self.logs = Stack()
 
     def convert_agent(self, agent):
@@ -385,7 +387,11 @@ class Environment:
                     scene['terminals'] = Stack()
                 scene['terminals'].push(MINUS_INF)
                 # save point
-                _save_scene_(scene)
+                if self.death_cnt < 95:
+                    _save_scene_(scene)
+                    save_log(logger=self.logs, id=self.id, goal_position=self.goal_position)
+                    delogging(self.logs)
+                    self.death_cnt += 1
                 return 0
             
             count = 0
@@ -408,6 +414,7 @@ class Environment:
                     scene['dones'] = Stack()
                 scene['dones'].push(r)
                 _save_scene_(scene)
+                self.goal_cnt += 1
                 print(f'env{self.id} found out one path!')
                 save_log(logger=self.logs, id=self.id, goal_position=self.goal_position)
                 delogging(self.logs)
@@ -417,7 +424,11 @@ class Environment:
                 if 'terminals' not in scene:
                     scene['terminals'] = Stack()
                 scene['terminals'].push(MINUS_INF)
-                _save_scene_(scene)
+                if self.death_cnt < 95:
+                    _save_scene_(scene)
+                    save_log(logger=self.logs, id=self.id, goal_position=self.goal_position)
+                    delogging(self.logs)
+                    self.death_cnt += 1
                 return 0
             
             

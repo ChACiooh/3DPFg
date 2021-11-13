@@ -1,13 +1,14 @@
 import time
 import os
+from ds import Stack
 
-def logging(logger, pos, state, action, timestep, reward, next_pos):
+def logging(logger:Stack, pos, state, action, timestep, reward, next_pos):
     x, y, z = pos[0], pos[1], pos[2]
     nx, ny, nz = next_pos[0], next_pos[1], next_pos[2]
     logger.push([state.id, state.no, action.input_key, timestep, reward, str((x, y, z))+'->'+str((nx, ny, nz))])
     return
 
-def delogging(logger):
+def delogging(logger:Stack):
     logger.pop()
     return
 
