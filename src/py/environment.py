@@ -591,7 +591,7 @@ class Environment:
         self.action_probs_vWall = softmax(np.ones(3))
         self.agent.Update(self.initial_agent)
         self.state.Update(self.initial_state)
-        self.logs = []
+        self.logs.clear()
         if dataset_initialize == True:
             self.dataset = []
         return self.state.get_state_vector()
