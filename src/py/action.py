@@ -12,8 +12,8 @@ with open('json/action_ids.json', 'r') as f:
     action_ids = json.load(f)
     
 action_input_keys = {}
-for item in action_ids.items():
-    action_input_keys[item[1]] = item[0]
+for input_key, key_id in action_ids.items():
+    action_input_keys[key_id] = input_key
 
 
 def change_direction(direction, input_key):
@@ -72,7 +72,7 @@ class Action:
     
 
 
-def cnv_vec2obj(emb_vec):
+def cnv_action_vec2obj(emb_vec):
     id = round(emb_vec[0])
     acting_time = emb_vec[1]
     input_key = action_input_keys[id]
@@ -81,3 +81,35 @@ def cnv_vec2obj(emb_vec):
     
     #action_id, velocity, acting_time=base_acting_time, stamina_consume=base_stamina_consume, input_key='Wait'
     return Action(action_id=id, velocity=velocity, acting_time=acting_time, stamina_consume=stamina_consume, input_key=input_key)
+
+
+def get_next_action(state_id, key_input, next_action_id, prev_velocity):
+    stamina_consume = base_stamina_consume
+    acting_time = base_acting_time
+    velocity = np.copy(prev_velocity)
+    if state_id == 'air':
+        stamina_consume = 0
+    elif state_id == 'field':
+        if 's' in key_input:
+            stamina_consume = 20
+            acting_time = 1
+        if 'j' in key_input:
+            stamina_consume = 1 if stamina_consume == base_stamina_consume else stamina_consume + 1
+    elif state_id == 'wall':
+        velocity = np.array([0., 1., 0.])   # 'W', 'Wj'
+        if 'S' in key_input:   # 'S'
+            velocity = np.array([0., -1., 0.])
+        if 'j' in key_input:
+            stamina_consume = 25
+            velocity *= 2
+          
+    elif state_id == 'parachute':
+        stamina_consume = 25
+        velocity *= 2
+    """
+    elif state_id == 'wall':
+        agent.update_direction()
+        이건 caller쪽에서 구현
+    """   
+    # given is same with state_id
+    return Action(next_action_id, velocity, acting_time, stamina_consume, key_input)

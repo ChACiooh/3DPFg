@@ -47,7 +47,7 @@ def evaluate_episode(
         actions[-1] = action
         action = action.detach().cpu().numpy()
 
-        state, reward, done, _ = env.step(action)
+        state, reward, done, _, _ = env.step(action)
 
         cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
         states = torch.cat([states, cur_state], dim=0)
@@ -56,7 +56,7 @@ def evaluate_episode(
         episode_return += reward
         episode_length += 1
 
-        if done:
+        if done == True:
             break
 
     return episode_return, episode_length

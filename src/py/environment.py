@@ -5,6 +5,7 @@ from action import *
 from agent import Agent
 from basic_math import *
 from logger import *
+from ds import Stack
 
 import pickle
 import os
@@ -17,7 +18,7 @@ state_maps = {'field':0, 'wall':len_stamina_area,
               'parachute':len_stamina_area*3, 
               'death':len_stamina_area*4, 'goal':len_stamina_area*4+1}
 
-
+MINUS_INF = -999999
 
 class Environment:
     # agent : agent object
@@ -74,6 +75,9 @@ class Environment:
         self.gliding_down = np.array([0., gliding_down, 0.])
         self.dataset = []
         self.logs = []
+        
+        self.state_stack = Stack()
+        self.action_stack = Stack()
 
     def convert_agent(self, agent):
         self.initial_agent = agent
@@ -112,7 +116,8 @@ class Environment:
         return 0 if fall_height <= 0 else fall_height * self.fall_damage
 
     def cal_next_pos(self, state, action):
-        next_pos = self.agent.get_current_position()
+        agent = Agent.from_agent(self.agent)
+        next_pos = agent.get_current_position()
         next_state_id = state.id
         if state.id == 'death' or state.id == 'goal' or action.input_key == 'Wait':
             return next_pos, state.id
@@ -130,15 +135,15 @@ class Environment:
         # 60 frame으로 나눠서 충돌 테스트
         t = action.acting_time / 60
         st = action.stamina_consume / 60
-        next_stamina = self.agent.stamina
-        prev_pos = self.agent.get_current_position()                    # copy
+        next_stamina = agent.stamina
+        prev_pos = agent.get_current_position()                    # copy
         v_xz = np.array([action.velocity[0], 0., action.velocity[2]])   # distribute by x,z
         v_y = np.array([0., action.velocity[1], 0.])                    # distribute by y
             
         if next_state_id == 'wall':
             # agent의 기저 벡터 space의 y-z평면을 기반으로 하지 않고,
             # 기존처럼 하되, 방향만 y-axis 방향으로 돌려둔 상태라고 가정.
-            # 옆으로는 움직일 수 없다고 가정.
+            # 옆으로는 움직일 수 없음
             for _ in range(60):
                 next_pos = next_pos + v_y * t
                 if next_stamina > 0 and st >= 0: # 벽에서는 회복 불가
@@ -164,7 +169,7 @@ class Environment:
                         break
                     if int(next_xz[0]) != int(prev_xz[0]) or int(next_xz[2]) != int(prev_xz[2]):
                         break
-                    next_xz += self.agent.dir * 0.05
+                    next_xz += agent.dir * 0.05
                     print(f'prev={prev_xz}')
                     print(f'next={next_xz}')
 
@@ -194,9 +199,9 @@ class Environment:
                     next_pos[1] = 0
                     if next_state_id == 'air':
                         damage = self.calc_fall_damage(y=prev_pos[1], ny=0)
-                        self.agent.HP -= damage
-                        if self.agent.HP < 1:
-                            self.agent.HP = 0
+                        agent.HP -= damage
+                        if agent.HP < 1:
+                            agent.HP = 0
                             next_state_id = 'death'
                         else:
                             next_state_id = 'field'
@@ -210,13 +215,13 @@ class Environment:
                     break
 
                 #prev_pos = np.copy(next_pos)
-        self.agent.stamina = next_stamina
-        return next_pos, next_state_id
+        agent.stamina = next_stamina
+        return next_pos, next_state_id, agent
     
     def state_transition(self, state, action):
         if state.id == 'death' or state.id == 'goal':
             return state, self.agent.get_current_pos()
-        next_pos, next_state_id = self.cal_next_pos(state, action)
+        next_pos, next_state_id, agent = self.cal_next_pos(state, action)
 
         remained_distance = EuclideanDistance(next_pos, self.goal_position)
 
@@ -230,7 +235,7 @@ class Environment:
         if self.isGoal(next_pos) == True:
             next_state_id = 'goal'
         next_state = State(remained_distance, next_state_id, next_state_no, spend_time=state.spend_time+action.acting_time)
-        return next_state, next_pos
+        return next_state, next_pos, agent
     
     def get_random_action(self):
         key = np.random.randint(self.num_actions)
@@ -295,43 +300,150 @@ class Environment:
         return key_input, key_id
 
     def reward(self, state, action):
-        next_state, next_pos = self.state_transition(state, action)
+        next_state, next_pos, agent = self.state_transition(state, action)
         deltaDistance = next_state.remained_distance - state.remained_distance
-        
-        return -deltaDistance, next_state, next_pos
+        return -deltaDistance, next_state, next_pos, agent
     
     # action is ndarray vector
     def step(self, action):
-        action = cnv_vec2obj(action)
-        reward, state, next_pos = self.reward(self.state, action)
+        action = cnv_action_vec2obj(action)
+        reward, state, next_pos, agent = self.reward(self.state, action)
         done = (state.id == 'goal')
-        return state, reward, done, next_pos
+        return state, reward, done, next_pos, agent
+    
+    def backstep(self):
+        self.state = self.state_stack.top()
+        self.state_stack.pop()
+
+    def get_valid_action_list(self, state_id, stamina):
+        if state_id == 'field':
+            if stamina <= 0:
+                return list(set(self.action_ids)- set([key for key in self.action_ids if 's' in key]))
+            return self.action_ids
+        elif state_id == 'air' and stamina > 0:
+            return ['Wait', 'j']
+        elif state_id == 'wall' and stamina > 0:
+            return ['Wait', 'W', 'S', 'Wj']
+        elif state_id == 'parachute' and stamina > 0:
+            return list(set(self.action_ids)- set([key for key in self.action_ids if 's' in key]))
+        return ['Wait']
+        
 
     def make_scenarios(self, n=10, log_printing=False):
         complete = 0
-        tle_cnt = 0
-        scenario = []
+        #tle_cnt = 0
+        #scenario = []
         task_no = 0
-        death_cnt = 0
-        print('initialized to make scenarios')
+        #death_cnt = 0
+        print(f'{self.id} - initialized to make scenarios')
         print(f'Max time step={self.MAX_timestep}')
-        while complete < n:
-            # initialize
-            task_no += 1
-            # PRINT_DEBUG
-            if log_printing == True:
-                print('')
-                print('='*20)
-                print(task_no)
-            scene = dict()
-            self.reset()
-            action = self.agent.action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
-            scene['observations'] = [self.state.get_state_vector()]
-            scene['actions'] = [action.get_action_vector()]
-            scene['rewards'] = []
-            scene['timesteps'] = []
-            time_out = False
-            next_key_input, next_action_id = 'Wait', 0
+        # while complete < n:
+        # initialize
+        task_no += 1
+        # PRINT_DEBUG
+        if log_printing == True:
+            print('')
+            print('='*20)
+            print(task_no)
+        
+        scene = dict()
+        self.reset()
+        # state: 현재 보는 local object 대상
+        # self.state: 현상을 유지해야 하는 state to calculate several things
+        state = State.from_state(self.state)
+        action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
+        self.agent.action.Update(action)
+        scene['observations'] = Stack()
+        scene['actions'] = Stack()
+        scene['rewards'] = Stack()
+        scene['timesteps'] = Stack()
+        #time_out = False
+        #next_key_input, next_action_id = 'Wait', 0
+        
+        def _save_scene_(scene):
+            time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
+            state_id = scene['observations'].top().id
+            path = f'pkl/scenario/{state_id}/env_{self.id}/'
+            if not os.path.exists(path):
+                os.makedirs(path)
+            scene_filename = path + f'{time_t}.scn'
+            save_scene = {}
+            for K, V in scene.items:
+                save_scene[K] = np.array(V.getTotal())
+                scene[K].pop()  # 마지막 step을 roll-back
+            with open(scene_filename, 'wb') as f:
+                pickle.dump(save_scene, f)
+        
+        def stepDFS(timestep, state:State, action:Action):
+            # 시작부터 goal인 건 이 함수를 호출하기 전에 걸러내기
+            if timestep > self.MAX_timestep:  # time over
+                # It works well even though the scene is empty
+                scene['observations'].pop()
+                scene['observations'].push(state)
+                state.id = 'death'            # fixed step
+                scene['rewards'].push(MINUS_INF)
+                scene['timesteps'].push(timestep)
+                if 'terminals' not in scene:
+                    scene['terminals'] = Stack()
+                scene['terminals'].push(MINUS_INF)
+                # save point
+                _save_scene_(scene)
+                return 0
+            
+            count = 0
+            
+            self.state = State.from_state(state)    # initialize with the given state ref.
+            scene['observations'].push(state)
+            scene['actions'].push(action)
+            action = action.get_action_vector()
+            # step
+            ns, r, d, npos, agent = self.step(action)  # npos is used to update agent and determine whether it can unfold parachute
+            action = cnv_action_vec2obj(action)
+            scene['rewards'].push(r)
+            scene['timesteps'].push(timestep)
+            
+            if d == True:   # same with goal
+                # savepoint
+                if 'dones' not in scene:
+                    scene['dones'] = Stack()
+                scene['dones'].push(r)
+                _save_scene_(scene)
+                return 1
+            elif ns.id == 'death':
+                # save point
+                if 'terminals' not in scene:
+                    scene['terminals'] = Stack()
+                scene['terminals'].push(MINUS_INF)
+                _save_scene_(scene)
+                return 0
+            
+            
+            action_list = self.get_valid_action_list(ns.id, agent.stamina)
+            for next_action_key_input in action_list:
+                passing_agent = Agent.from_agent(agent)
+                if ns.id == 'air' and 'j' in next_action_key_input:
+                    if passing_agent.stamina <= 0 or self.canParachute(npos) == False:
+                        continue
+                elif ns.id == 'wall' and state.id != 'wall':
+                    passing_agent.update_direction(action.velocity)
+                
+                next_action = get_next_action(ns.id, next_action_key_input, 
+                                            self.action_ids[next_action_key_input],
+                                            prev_velocity=action.velocity)
+                
+                self.agent.Update(passing_agent)
+                self.state.Update(ns)
+                count += stepDFS(timestep+1, state=ns, action=next_action)
+                self.agent.Update(agent)
+                self.state.Update(state)
+            
+            for K in scene.keys:
+                scene[K].pop()
+            return count    
+        
+        complete = stepDFS(timestep=1, state=state, action=action)
+        
+        """
             for t in range(self.MAX_timestep):
                 # PRINT_DEBUG
                 if log_printing == True:
@@ -340,7 +452,7 @@ class Environment:
                 # step                
                 action = action.get_action_vector()
                 ns, r, done, next_pos = self.step(action)
-                action = cnv_vec2obj(action)
+                action = cnv_action_vec2obj(action)
                 logging(self.logs, self.agent.pos, self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                 
                 # PRINT_DEBUG
@@ -359,9 +471,9 @@ class Environment:
                     time_out = True
                     print(f'Time over. - {task_no}')
                     #print('failed:agent({}) / goal({})'.format(self.agent.get_current_position(), self.goal_position))
-                    """if 'terminals' not in scene:
+                    '''if 'terminals' not in scene:
                         scene['terminals'] = []
-                    scene['terminals'].append(1)"""
+                    scene['terminals'].append(1)'''
                     break
 
                 # calculate next situation
@@ -412,7 +524,7 @@ class Environment:
                     if 'j' in next_key_input:
                         stamina_consume = 25
                         velocity *= 2
-                elif state.id == 'parachute':
+                elif ns.id == 'parachute':
                     next_key_input, next_action_id = self.get_softmax_action(next_key_input, only=['W', 'A', 'S', 'D', 'WA', 'WD', 'SA', 'SD', 'j'])
                     stamina_consume = 2
                     given = 'parachute'
@@ -458,13 +570,12 @@ class Environment:
                 
                 if log_printing == True:
                     print_log()
-
-            """if complete == 0 and tle_cnt >= n:
-                print('Failed.\nIt needs to add Time-steps.')
-                break"""
+            """
+        # self.dataset.append(scenario)   # Probably unused
+        print(f'env{self.id} succeeded with {complete}.')
         
-        self.dataset.append(scenario)   # Probably unused
-        return scenario
+        return complete
+    # function make_scenario end.
     
     def get_dataset(self):
         return self.dataset
