@@ -34,6 +34,10 @@ class Action:
         self.input_key = input_key
         self.velocity = np.copy(velocity) # numpy array vector
         self.stamina_consume = stamina_consume
+
+    @classmethod
+    def from_action(cls, action):
+        return cls(action.id, action.velocity, action.acting_time, action.stamina_consume, action.input_key)
        
     # agent_dir : unit vector which points the direction that agent is looking
     def action_update(self, action_id, input_key, stamina_consume, acting_time, agent_dir, velocity, given='None'):
@@ -87,6 +91,7 @@ def get_next_action(state_id, key_input, next_action_id, prev_velocity):
     stamina_consume = base_stamina_consume
     acting_time = base_acting_time
     velocity = np.copy(prev_velocity)
+    given = None
     if state_id == 'air':
         stamina_consume = 0
     elif state_id == 'field':
@@ -97,6 +102,7 @@ def get_next_action(state_id, key_input, next_action_id, prev_velocity):
             stamina_consume = 1 if stamina_consume == base_stamina_consume else stamina_consume + 1
     elif state_id == 'wall':
         velocity = np.array([0., 1., 0.])   # 'W', 'Wj'
+        given = 'wall'
         if 'S' in key_input:   # 'S'
             velocity = np.array([0., -1., 0.])
         if 'j' in key_input:
@@ -104,8 +110,9 @@ def get_next_action(state_id, key_input, next_action_id, prev_velocity):
             velocity *= 2
           
     elif state_id == 'parachute':
-        stamina_consume = 25
+        given = 'parachute'
+        stamina_consume = 2
         velocity *= 2
 
     # given is same with state_id
-    return Action(next_action_id, velocity, acting_time, stamina_consume, key_input)
+    return velocity, stamina_consume, acting_time, given

@@ -14,6 +14,7 @@ class Stack:
         if self.amount_ <= 0:
             return
         self.amount_ -= 1
+        self.stock_ = self.stock_[:self.amount_]
         
     def top(self):
         if self.amount_ <= 0:

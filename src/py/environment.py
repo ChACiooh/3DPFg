@@ -40,7 +40,7 @@ class Environment:
                  state_ids, action_ids, 
                  fall_damage,
                  fall_min_height,
-                 MAX_timestep=500,
+                 MAX_timestep=256,
                  MAX_stamina=200, 
                  unit_time=1.3, 
                  parachute_height=5,
@@ -88,7 +88,7 @@ class Environment:
 
     def isGoal(self, pos):
         d = EuclideanDistance(self.goal_position, pos)
-        return d <= 0.5
+        return d <= math.sqrt(3)    # sphere in a cubic with side=1
 
     def inBound(self, x, z):
         return not (x < 0 or x >= len(self.map_info) or z < 0 or z >= len(self.map_info[0]))
@@ -115,19 +115,19 @@ class Environment:
         return 0 if fall_height <= 0 else fall_height * self.fall_damage
 
     def cal_next_pos(self, state, action):
-        agent = Agent.from_agent(self.agent)
+        agent = Agent.from_agent(self.agent)    # copy current agent object
         next_pos = agent.get_current_position()
         next_state_id = state.id
         if state.id == 'death' or state.id == 'goal' or action.input_key == 'Wait':
-            return next_pos, state.id, agent
+            return state.id, agent
         elif state.id == 'air' and 'j' in action.input_key:
             # 현재 air 상태인데 입력된 action에 점프 키가 있다
             next_state_id = 'parachute'
-            return next_pos, next_state_id, agent
+            return next_state_id, agent
             # parachute mode on
         elif state.id == 'parachute' and 'j' in action.input_key:
             next_state_id = 'air'
-            return next_pos, next_state_id, agent
+            return next_state_id, agent
         elif state.id == 'field' and 'j' in action.input_key:
             next_state_id = 'air'
             
@@ -148,10 +148,15 @@ class Environment:
                 if next_stamina > 0 and st >= 0: # 벽에서는 회복 불가
                     next_stamina -= st
 
+                if next_pos[1] < 0:
+                    next_pos[1] = 0
+                    break
+
                 if next_stamina < 1:   # stamina가 다하고 미끄러짐/떨어짐
                     next_stamina = 0
                     next_state_id = 'death'
-                    return next_pos, next_state_id, agent
+                    agent.pos = next_pos
+                    return next_state_id, agent
                 
             next_xz = np.copy(next_pos)
             next_xz[1] = 0
@@ -208,6 +213,13 @@ class Environment:
                     elif next_state_id == 'parachute':
                         next_state_id = 'field'
                         break
+                else:   #걸어 내려가는 상황
+                    from map_designer import isField
+                    if isField(self.map_info, int(x), int(z), self.climb_angle) == True:
+                        next_pos[1] = self.map_info[int(x), int(z)]
+                    else:
+                        next_state_id = 'air'
+                        break
                         
                 if self.isWall(prev_pos[0], prev_pos[2], x, z) == True:
                     next_state_id = 'wall'
@@ -215,28 +227,28 @@ class Environment:
 
                 #prev_pos = np.copy(next_pos)
         agent.stamina = next_stamina
-        agent.pos = np.copy(next_pos)
-        return next_pos, next_state_id, agent
+        agent.pos = next_pos
+        return next_state_id, agent
     
     def state_transition(self, state, action):
         if state.id == 'death' or state.id == 'goal':
-            return state, self.agent.get_current_pos(), Agent.from_agent(self.agent)
+            return state, Agent.from_agent(self.agent)
         
-        next_pos, next_state_id, agent = self.cal_next_pos(state, action)
-
+        next_state_id, agent = self.cal_next_pos(state, action)
+        next_pos = agent.pos
         remained_distance = EuclideanDistance(next_pos, self.goal_position)
 
         next_state_no = state.no
         if next_state_id != 'death' and next_state_id != 'goal':
             for i in range(len_stamina_area):
-                if self.agent.stamina / self.MAX_stamina * 100.0 <= stamina_area[i]:
+                if agent.stamina / self.MAX_stamina * 100.0 <= stamina_area[i]:
                     next_state_no = state_maps[next_state_id] + i
                     break
                 
         if self.isGoal(next_pos) == True:
             next_state_id = 'goal'
         next_state = State(remained_distance, next_state_id, next_state_no, spend_time=state.spend_time+action.acting_time)
-        return next_state, next_pos, agent
+        return next_state, agent
     
     def get_random_action(self):
         key = np.random.randint(self.num_actions)
@@ -301,23 +313,22 @@ class Environment:
         return key_input, key_id
 
     def reward(self, state, action):
-        next_state, next_pos, agent = self.state_transition(state, action)
+        next_state, agent = self.state_transition(state, action)
         deltaDistance = next_state.remained_distance - state.remained_distance
-        return -deltaDistance, next_state, next_pos, agent
+        return -deltaDistance, next_state, agent
     
     # action is ndarray vector
     def step(self, action):
         action = cnv_action_vec2obj(action)
-        reward, state, next_pos, agent = self.reward(self.state, action)
+        reward, state, agent = self.reward(self.state, action)
         done = (state.id == 'goal')
-        return state, reward, done, next_pos, agent
+        return state, reward, done, agent
     
-
     def get_valid_action_list(self, state_id, stamina):
         if state_id == 'field':
             if stamina <= 0:
                 return list(set(self.action_ids)- set([key for key in self.action_ids if 's' in key]))
-            return self.action_ids
+            return list(self.action_ids.keys())
         elif state_id == 'air' and stamina > 0:
             return ['Wait', 'j']
         elif state_id == 'wall' and stamina > 0:
@@ -325,10 +336,8 @@ class Environment:
         elif state_id == 'parachute' and stamina > 0:
             return list(set(self.action_ids)- set([key for key in self.action_ids if 's' in key]))
         return ['Wait']
-        
-    
 
-    def make_scenarios(self, n=10, log_printing=False):
+    def make_scenarios(self, n=10, threshold=MINUS_INF, log_printing=False):
         complete = 0
         #tle_cnt = 0
         #scenario = []
@@ -337,19 +346,13 @@ class Environment:
         print(f'{self.id} - initialized to make scenarios')
         print(f'Max time step={self.MAX_timestep}')
         # while complete < n:
-        
-        # PRINT_DEBUG
-        if log_printing == True:
-            print('')
-            print('='*20)
-            print(task_no)
             
         # initialize
         scene = dict()
         self.reset()
         # state: 현재 보는 local object 대상
         # self.state: 현상을 유지해야 하는 state to calculate several things
-        state = State.from_state(self.state)
+        state = State.from_state(self.initial_state)
         action = Action(action_id=self.action_ids['Wait'], velocity=np.array([0.,0.,0.]))
         self.agent.action.Update(action)
         scene['observations'] = Stack()
@@ -361,11 +364,12 @@ class Environment:
         
         def _save_scene_(scene):
             time_t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
-            state_id = scene['observations'].top().id
+            state_id = 'goal' if ('dones' in scene.keys()) else 'death'
             path = f'pkl/scenario/{state_id}/env_{self.id}/'
             if not os.path.exists(path):
                 os.makedirs(path)
-            scene_filename = path + f'{time_t}.scn'
+            postfix = self.death_cnt if state_id == 'death' else self.goal_cnt
+            scene_filename = path + f'{time_t}_{postfix}.scn'
             save_scene = {}
             for K, V in scene.items():
                 save_scene[K] = np.array(V.getTotal())
@@ -374,13 +378,28 @@ class Environment:
                 pickle.dump(save_scene, f)
             return
         
+        visit = np.zeros((21, 101, 101), dtype=bool)
+
+        def isVisited(pos) -> bool:
+            x, y, z = int(pos[0]), int(pos[1]), int(pos[2])
+            if y > 20:
+                return True
+            return visit[y, x, z]
+
+        def check_visit(pos, check=True) -> None:
+            x, y, z = int(pos[0]), int(pos[1]), int(pos[2])
+            visit[y, x, z] = check
+            return
+
         def stepDFS(timestep, state:State, action:Action):
             # 시작부터 goal인 건 이 함수를 호출하기 전에 걸러내기
+
             if timestep > self.MAX_timestep:  # time over
                 # It works well even though the scene is empty
+                print('Time over')
                 scene['observations'].pop()
-                scene['observations'].push(state)
                 state.id = 'death'            # fixed step
+                scene['observations'].push(state)
                 scene['rewards'].push(MINUS_INF)
                 scene['timesteps'].push(timestep)
                 if 'terminals' not in scene:
@@ -389,35 +408,51 @@ class Environment:
                 # save point
                 if self.death_cnt < 95:
                     _save_scene_(scene)
-                    save_log(logger=self.logs, id=self.id, goal_position=self.goal_position)
+                    #save_log(logger=self.logs, id=self.id, goal_position=self.goal_position)
                     delogging(self.logs)
                     self.death_cnt += 1
+                for K in scene.keys():
+                    scene[K].pop()
+                check_visit(self.agent.pos, check=False)
                 return 0
             
             count = 0
             
-            self.state = State.from_state(state)    # initialize with the given state ref.
             scene['observations'].push(state)
             scene['actions'].push(action)
             action = action.get_action_vector()
             # step
-            ns, r, d, npos, agent = self.step(action)  # npos is used to update agent and determine whether it can unfold parachute
+            ns, r, d, agent = self.step(action)  # npos is used to update agent and determine whether it can unfold parachute
             action = cnv_action_vec2obj(action)
             scene['rewards'].push(r)
             scene['timesteps'].push(timestep)
+
+            if isVisited(agent.pos) == True:
+                for K in scene.keys():
+                    scene[K].pop()
+                return 0
+            elif r < threshold:
+                for K in scene.keys():
+                    scene[K].pop()
+                return 0
+            else:
+                check_visit(agent.pos)
             
-            logging(self.logs, self.agent.pos, state, action, timestep, r, npos)
+            logging(self.logs, self.agent.pos, state, action, timestep, r, agent.pos)
             
             if d == True:   # same with goal
+                print(f'env{self.id} found out {self.goal_cnt} path(s)!')
                 # savepoint
                 if 'dones' not in scene:
                     scene['dones'] = Stack()
                 scene['dones'].push(r)
                 _save_scene_(scene)
                 self.goal_cnt += 1
-                print(f'env{self.id} found out one path!')
                 save_log(logger=self.logs, id=self.id, goal_position=self.goal_position)
                 delogging(self.logs)
+                for K in scene.keys():
+                    scene[K].pop()
+                check_visit(agent.pos, check=False)
                 return 1
             elif ns.id == 'death':
                 # save point
@@ -425,27 +460,42 @@ class Environment:
                     scene['terminals'] = Stack()
                 scene['terminals'].push(MINUS_INF)
                 if self.death_cnt < 95:
+                    print(f'You Died - {self.id}')
                     _save_scene_(scene)
-                    save_log(logger=self.logs, id=self.id, goal_position=self.goal_position)
+                    #save_log(logger=self.logs, id=self.id, goal_position=self.goal_position)
                     delogging(self.logs)
                     self.death_cnt += 1
+                for K in scene.keys():
+                    scene[K].pop()
+                check_visit(agent.pos, check=False)
                 return 0
-            
-            
+
             action_list = self.get_valid_action_list(ns.id, agent.stamina)
+            np.random.shuffle(action_list)
+            # PRINT_DEBUG
+            if log_printing == True:
+                print(f'state: {state.id}->{ns.id}')
+                print(f'action: {action.input_key}')
+                print(f'agent: {self.agent.pos}->{agent.pos}')
+                print(f'valid key list: {action_list}')
+
             for next_action_key_input in action_list:
                 passing_agent = Agent.from_agent(agent)
                 if ns.id == 'air' and 'j' in next_action_key_input:
-                    if passing_agent.stamina <= 0 or self.canParachute(npos) == False:
+                    if passing_agent.stamina <= 0 or self.canParachute(passing_agent.pos) == False:
                         continue
                 elif ns.id == 'wall' and state.id != 'wall':
                     passing_agent.update_direction(action.velocity)
                 
-                next_action = get_next_action(ns.id, next_action_key_input, 
+                velocity, stamina_consume, acting_time, given = get_next_action(ns.id, next_action_key_input, 
                                             self.action_ids[next_action_key_input],
                                             prev_velocity=action.velocity)
                 
+                next_action = Action.from_action(action)
+                next_action.action_update(self.action_ids[next_action_key_input], next_action_key_input,
+                                            stamina_consume, acting_time, passing_agent.dir, velocity, given)
                 self.agent.Update(passing_agent)
+                self.agent.update_action(next_action)
                 self.state.Update(ns)
                 count += stepDFS(timestep+1, state=ns, action=next_action)
                 self.agent.Update(agent)
@@ -453,6 +503,7 @@ class Environment:
             
             for K in scene.keys():
                 scene[K].pop()
+            check_visit(self.agent.pos, check=False)
             return count    
         
         complete = stepDFS(timestep=1, state=state, action=action)
@@ -465,20 +516,21 @@ class Environment:
 
                 # step                
                 action = action.get_action_vector()
-                ns, r, done, next_pos = self.step(action)
+                ns, r, done, next_agent = self.step(action)
                 action = cnv_action_vec2obj(action)
+                next_pos = next_agent.get_current_pos()
                 logging(self.logs, self.agent.pos, self.state, action, timestep=t+1, reward=r, next_pos=next_pos)
                 
                 # PRINT_DEBUG
                 if log_printing == True:
                     print(f'after : s_id={ns.id}, pos={next_pos}, action={action.input_key}')
                     print('='*50)
-                scene['rewards'].append(r)
-                scene['timesteps'].append(ns.spend_time)
+                scene['rewards'].push(r)
+                scene['timesteps'].push(ns.spend_time)
                 if done == True:
                     if 'dones' not in scene:
-                        scene['dones'] = []
-                    scene['dones'].append(r)
+                        scene['dones'] = Stack()
+                    scene['dones'].push(r)
 
                 elif t == self.MAX_timestep - 1:
                     tle_cnt += 1
@@ -603,6 +655,7 @@ class Environment:
         self.agent.Update(self.initial_agent)
         self.state.Update(self.initial_state)
         self.logs.clear()
+        self.goal_cnt = self.death_cnt = 0
         if dataset_initialize == True:
             self.dataset = []
         return self.state.get_state_vector()
