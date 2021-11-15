@@ -28,7 +28,7 @@ class Stack:
         self.stock_ = []
         self.amount_ = 0
     
-    def getTotal(self, n=-1):
+    def getTotal(self, n=-1) -> list:
         if n != -1:
             return self.stock_[:n]
         return self.stock_[:self.amount_]   # auto copy

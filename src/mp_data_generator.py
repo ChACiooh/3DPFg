@@ -48,13 +48,10 @@ for my_env in envs:
     my_env.reset(dataset_initialize=True)
 
 #trajectories = my_env.make_scenarios(n=10)
-def ms(env, n=5):
-    env.make_scenarios(n)
+def ms(env, n=5, threshold=-3):
+    env.make_scenarios(n=n, threshold=threshold)
     return
 
-n_s = []
-for _ in range(len(envs)):
-    n_s.append(5)
 
 # multi-processing
 from multiprocessing import Pool
