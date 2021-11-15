@@ -88,7 +88,7 @@ class Environment:
 
     def isGoal(self, pos):
         d = EuclideanDistance(self.goal_position, pos)
-        return d <= math.sqrt(3)    # sphere in a cubic with side=1
+        return d <= math.sqrt(3)/2    # sphere in a cubic with side=1
 
     def inBound(self, x, z):
         return not (x < 0 or x >= len(self.map_info) or z < 0 or z >= len(self.map_info[0]))
@@ -158,7 +158,7 @@ class Environment:
             ny = self.map_info[int(pos[0]), int(pos[2])]
             c = EuclideanDistance(np.array([int(next_pos[0]), ny, int(next_pos[2])]), pos)
             a = EuclideanDistance(np.array([int(next_pos[0]), 0 , int(next_pos[2])]), np.array([pos[0], 0, pos[2]]))
-            angle = math.acos(c / a) if a != 0 else math.pi / 2
+            angle = math.pi / 2 if a == 0 else math.acos(a / c)
             return angle < self.climb_angle
          
         if next_state_id == 'wall':
@@ -399,9 +399,8 @@ class Environment:
             visit[y, x, z] = check
             return
 
-        def stepDFS(timestep, state:State, action:Action):
-            # 시작부터 goal인 건 이 함수를 호출하기 전에 걸러내기
-
+        def stepDFS(timestep, state:State, action:Action, n=n):
+            # 시작부터 goal인 건 data 만들기 전에 그러지 않다고 가정
             if timestep > self.MAX_timestep:  # time over
                 # It works well even though the scene is empty
                 print('Time over')
@@ -505,9 +504,13 @@ class Environment:
                 self.agent.Update(passing_agent)
                 self.agent.update_action(next_action)
                 self.state.Update(ns)
+                    
                 count += stepDFS(timestep+1, state=ns, action=next_action)
+                
                 self.agent.Update(agent)
                 self.state.Update(state)
+                if count >= n:
+                    return count
             
             for K in scene.keys():
                 scene[K].pop()

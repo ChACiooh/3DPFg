@@ -12,6 +12,12 @@ def delogging(logger:Stack):
     logger.pop()
     return
 
+def gen_log_msg(log:list):
+    log_msg = f'coord:{log[5]}\n'
+    log_msg += f'state:{log[0]}-{log[1]}, action:{log[2]}, timestep:{log[3]}, reward:{log[4]}\n'
+    log_msg += '=' * 50 + '\n\n'
+    return log_msg
+
 def save_log(logger, id, goal_position):
     t = time.strftime('%Y%m%d_%H-%M-%S', time.localtime(time.time()))
     gx = int(goal_position[0])
@@ -25,25 +31,26 @@ def save_log(logger, id, goal_position):
     filename = path + f'{t}.log'
     with open(f'{filename}', 'w') as f:
         for log in logger.getTotal():
-            log_msg = f'coord:{log[4]}\n'
-            log_msg += f'state:{log[0]}, action:{log[1]}, timestep:{log[2]}, reward:{log[3]}\n'
-            log_msg += '=' * 50 + '\n\n'
+            log_msg = gen_log_msg(log)
             f.write(log_msg)
     return
 
-def print_log(logger, n=20):
+def print_log(logger:Stack, n=20):
     print('')
     print('logs>')
     len_log = len(logger)
     if len_log < 2*n:
-        for l in logger:
-            print(f'coord:"{l[4]}"')
-            print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
+        for log in logger.getTotal():
+            log_msg = gen_log_msg(log)
+            print(log_msg)
     elif len_log >= 2*n:
-        for l in logger[:20]:
-            print(f'coord:"{l[4]}"')
-            print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
-        for l in logger[len_log-20:]:
-            print(f'coord:"{l[4]}"')
-            print(f'state:"{l[0]}", action:"{l[1]}", timestep:"{l[2]}", reward:"{l[3]}"')
+        for log in logger.getTotal(n):
+            log_msg = gen_log_msg(log)
+            print(log_msg)
+        print('\n\n')
+        print('A Few Moments Later...')
+        print('\n\n')
+        for log in logger.getTotal(-n):
+            log_msg = gen_log_msg(log)
+            print(log_msg)
     return
