@@ -157,7 +157,7 @@ class Environment:
                 return False
             ny = self.map_info[int(pos[0]), int(pos[2])]
             c = EuclideanDistance(np.array([int(next_pos[0]), ny, int(next_pos[2])]), pos)
-            a = EuclideanDistance(np.array([int(next_pos[0]), 0 , int(next_pos[2])]), np.array(pos[0], 0, pos[2]))
+            a = EuclideanDistance(np.array([int(next_pos[0]), 0 , int(next_pos[2])]), np.array([pos[0], 0, pos[2]]))
             angle = math.acos(c / a) if a != 0 else math.pi / 2
             return angle < self.climb_angle
          
