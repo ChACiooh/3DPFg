@@ -35,3 +35,8 @@ def round(n, maximum=70) -> int:
         if n-i >= -0.5 and n-i < 0.5:
             return i
     return 0
+
+def interpolate(pos1:np.ndarray, pos2:np.ndarray, a, b):
+    if a + b == 0:
+        return pos1
+    return (a*pos2 + b*pos1) / (a+b)

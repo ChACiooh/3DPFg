@@ -36,7 +36,7 @@ def plt_map_info(map_list, X, Z):
         plt.show()
     return
 
-def isField(map_list, x:int, z:int, angle) -> bool:
+"""def isField(map_list, x:int, z:int, angle) -> bool:
     dx = [-1,0,1]
     dz = [-1,0,1]
     y = map_list[x, z]
@@ -58,7 +58,7 @@ def isField(map_list, x:int, z:int, angle) -> bool:
             except:
                 continue
 
-    return True
+    return True"""
 
         
 class MapDesigner:

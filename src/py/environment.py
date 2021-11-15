@@ -45,7 +45,7 @@ class Environment:
                  unit_time=1.3, 
                  parachute_height=5,
                  gravitial_acc=9.8,
-                 climb_angle=60,
+                 climb_angle=math.pi/3,
                  gliding_down=10.0):
         self.id = id
         self.initial_agent = agent
@@ -104,7 +104,7 @@ class Environment:
             return True
         angle = np.arctan(abs(tangent))
 
-        return angle >= self.climb_angle * np.pi / 180
+        return angle >= self.climb_angle
 
     def canParachute(self, pos):
         x, y, z = pos[0], pos[1], pos[2]
@@ -135,58 +135,67 @@ class Environment:
         t = action.acting_time / 60
         st = action.stamina_consume / 60
         next_stamina = agent.stamina
-        prev_pos = agent.get_current_position()                    # copy
+        prev_pos = agent.pos    # DO NOT make be updated
         v_xz = np.array([action.velocity[0], 0., action.velocity[2]])   # distribute by x,z
         v_y = np.array([0., action.velocity[1], 0.])                    # distribute by y
             
+        def goFront(pos, dir, cof):
+            yangshim_cnt = 0
+            nx, nz = pos[0], pos[2]
+            while yangshim_cnt < 1000:
+                nx += 0.05 * dir[0] * cof
+                nz += 0.05 * dir[2] * cof
+                yangshim_cnt += 1
+                if int(pos[0]) != int(nx) or int(pos[2]) != int(nz):
+                    break
+            return np.array([nx, pos[1], nz])
+        
+        def isNextField(pos:np.ndarray, dir:np.ndarray, key_input='W') -> bool:
+            cof = 1 if 'W' in key_input else (-1 if 'S' in key_input else 0)
+            next_pos = goFront(pos, dir, cof)
+            if not self.inBound(next_pos[0], next_pos[2]):
+                return False
+            ny = self.map_info[int(pos[0]), int(pos[2])]
+            c = EuclideanDistance(np.array([int(next_pos[0]), ny, int(next_pos[2])]), pos)
+            a = EuclideanDistance(np.array([int(next_pos[0]), 0 , int(next_pos[2])]), np.array(pos[0], 0, pos[2]))
+            angle = math.acos(c / a) if a != 0 else math.pi / 2
+            return angle < self.climb_angle
+         
         if next_state_id == 'wall':
             # agent의 기저 벡터 space의 y-z평면을 기반으로 하지 않고,
             # 기존처럼 하되, 방향만 y-axis 방향으로 돌려둔 상태라고 가정.
             # 옆으로는 움직일 수 없음
+        
             for _ in range(60):
-                next_pos = next_pos + v_y * t
-                if next_stamina > 0 and st >= 0: # 벽에서는 회복 불가
+                next_pos += v_y * t
+                if next_stamina > 0 and st >= 0:
                     next_stamina -= st
-
-                if next_pos[1] < 0:
-                    next_pos[1] = 0
-                    break
-
-                if next_stamina < 1:   # stamina가 다하고 미끄러짐/떨어짐
+                if next_stamina <= 0:   # 오르다가 air상태로 변경
                     next_stamina = 0
-                    next_state_id = 'death'
+                    next_state_id = 'air'
                     agent.pos = next_pos
+                    agent.stamina = next_stamina
                     return next_state_id, agent
                 
-            next_xz = np.copy(next_pos)
-            next_xz[1] = 0
-            prev_xz = np.copy(next_xz)
-            y1 = self.map_info[int(prev_pos[0]), int(prev_pos[2])]
-            y_hat = self.map_info[int(next_pos[0]), int(next_pos[2])]
-
-            if not self.inBound(next_pos[0], next_pos[2]):
-                next_state_id = 'death'
-
-            elif y_hat > y1:
-                while self.inBound(next_xz[0], next_xz[2]):
-                    if self.map_info[int(next_xz[0]), int(next_xz[2])] != y1:
-                        break
-                    if int(next_xz[0]) != int(prev_xz[0]) or int(next_xz[2]) != int(prev_xz[2]):
-                        break
-                    next_xz += agent.dir * 0.05
-                    print(f'prev={prev_xz}')
-                    print(f'next={next_xz}')
-
-                y2 = self.map_info[int(next_xz[0]), int(next_xz[2])]
-                a = y2 - y_hat
-                b = y_hat - y1
-                next_xz = prev_xz + (next_xz - prev_xz) * a / (a+b)
-                next_pos[0] = next_xz[0]
-                next_pos[2] = next_xz[2]
+            y_hat = next_pos[1]
+            if 'W' in action.input_key and y_hat > self.map_info[int(next_pos[0]), int(next_pos[2])]:
+                a = abs(y_hat - prev_pos[1])
+                _next_pos_ = goFront(next_pos, agent.dir, 1)
+                b = abs(_next_pos_[1] - y_hat)
+                next_pos = interpolate(next_pos, _next_pos_, a, b)
+            elif 'S' in action.input_key:
+                _next_pos_ = goFront(next_pos, agent.dir, -1)
+                if _next_pos_[1] < self.map_info[int(_next_pos_[0]), int(_next_pos_[2])]:
+                    a = abs(y_hat - prev_pos[1])
+                    b = abs(_next_pos_[1] - y_hat)
+                    next_pos = interpolate(next_pos, _next_pos_, a, b)
+            if isNextField(next_pos, agent.dir, action.input_key) == True:
+                next_state_id = 'field'
             
+        # if wall end
         else:
             for _ in range(60):
-                next_pos = next_pos + (v_xz + v_y)*t 
+                next_pos = next_pos + action.velocity*t 
                 if next_state_id == 'air':
                     v_y += self.g * t
                 x, y, z = next_pos[0], next_pos[1], next_pos[2]
@@ -199,6 +208,10 @@ class Environment:
                 elif next_stamina >= self.MAX_stamina:
                     next_stamina = self.MAX_stamina
 
+                if self.isWall(prev_pos[0], prev_pos[2], x, z) == True:
+                    next_state_id = 'wall'
+                    break
+                
                 if y <= self.map_info[int(x), int(z)]:
                     next_pos[1] = 0
                     if next_state_id == 'air':
@@ -214,19 +227,14 @@ class Environment:
                         next_state_id = 'field'
                         break
                 else:   #걸어 내려가는 상황
-                    from map_designer import isField
-                    if isField(self.map_info, int(x), int(z), self.climb_angle) == True:
-                        next_pos[1] = self.map_info[int(x), int(z)]
+                    if isNextField(next_pos, agent.dir, action.input_key) == True:
+                        next_state_id = 'field'
                     else:
                         next_state_id = 'air'
                         break
-                        
-                if self.isWall(prev_pos[0], prev_pos[2], x, z) == True:
-                    next_state_id = 'wall'
-                    break
 
                 #prev_pos = np.copy(next_pos)
-        agent.stamina = next_stamina
+        agent.stamina = int(next_stamina)
         agent.pos = next_pos
         return next_state_id, agent
     
