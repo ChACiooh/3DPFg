@@ -39,7 +39,7 @@ from environment import *
 envs = []
 print('goal positions')
 for i in range(12):
-    with open(f'pkl/data/my_env22_{i+1}.pkl', 'rb') as f:
+    with open(f'pkl/data/my_env33_{i+1}.pkl', 'rb') as f:
         my_env = pickle.load(f)
         print(my_env.goal_position)
         envs.append(my_env)
