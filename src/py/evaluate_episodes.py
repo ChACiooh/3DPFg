@@ -116,7 +116,7 @@ def evaluate_episode_rtg(
         action = action.detach().cpu().numpy()
         print(f'depatched action:{action}') # for checking
         state, reward, done, _ = env.step(action)
-
+        #state = state.get_state_vector()
         cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
         states = torch.cat([states, cur_state], dim=0)
         rewards[-1] = reward

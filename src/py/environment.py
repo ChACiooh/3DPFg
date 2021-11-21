@@ -1,5 +1,6 @@
 from numpy.random.mtrand import f
 from state import State
+from state import *
 from action import Action
 from action import *
 from agent import Agent
@@ -332,7 +333,7 @@ class Environment:
         action = cnv_action_vec2obj(action)
         reward, state, agent = self.reward(self.state, action)
         done = (state.id == 'goal')
-        return state, reward, done, agent
+        return state.get_state_vector(), reward, done, agent
     
     def get_valid_action_list(self, state_id, stamina):
         if state_id == 'field':
@@ -382,8 +383,8 @@ class Environment:
                 os.makedirs(path)
             scene_filename = path + f'{time_t}_{postfix}.scn'
             save_scene = {}
-            for K, V in scene.items():
-                save_scene[K] = np.array(V.getTotal())
+            for K, V in scene.items():  # K: observations, actions, rewards, timesteps
+                save_scene[K] = np.array(V.getTotal())    # list of numpy array
                 scene[K].pop()  # 마지막 step을 roll-back
             with open(scene_filename, 'wb') as f:
                 pickle.dump(save_scene, f)
@@ -411,8 +412,8 @@ class Environment:
                 # It works well even though the scene is empty
                 print('Time over')
                 scene['observations'].pop()
-                state.id = 'timeout'            # fixed step
-                scene['observations'].push(state)
+                state.id = 'death'            # fixed step timeout
+                scene['observations'].push(state.get_state_vector())
                 scene['rewards'].push(MINUS_INF)
                 scene['timesteps'].push(timestep)
                 if 'terminals' not in scene:
@@ -434,12 +435,12 @@ class Environment:
             if timestep > 1 and action.input_key == 'Wait' and (self.agent.stamina >= self.MAX_stamina or state.id == 'wall'):   # 아무 득도 안 되는 행동
                 return
             
-            scene['observations'].push(state)
-            scene['actions'].push(action)
+            scene['observations'].push(state.get_state_vector())
+            scene['actions'].push(action.get_action_vector())
             action = action.get_action_vector()
             # step
             ns, r, d, agent = self.step(action)  # npos is used to update agent and determine whether it can unfold parachute
-            
+            ns = cnv_state_vec2obj(ns)
             action = cnv_action_vec2obj(action)
             scene['rewards'].push(r)
             scene['timesteps'].push(timestep)
